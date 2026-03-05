@@ -11,6 +11,23 @@ import type {
   Role,
 } from "../../types";
 
+function normalizeUser(raw: any): User {
+  return {
+    ...raw,
+    isActive:
+      typeof raw?.isActive === "boolean"
+        ? raw.isActive
+        : typeof raw?.active === "boolean"
+        ? raw.active
+        : true,
+  };
+}
+
+function normalizeUsers(raw: any): User[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((item) => normalizeUser(item));
+}
+
 // ─── Projects ─────────────────────────────────────────────────────────────────
 
 export interface CreateProjectRequest {
@@ -54,6 +71,14 @@ export interface UpdateWorkItemRequest {
   dueAt?: string;
 }
 
+export interface CreateBugRequest {
+  title: string;
+  description?: string;
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  assignedTo?: number;
+  dueAt?: string;
+}
+
 function toFilterParams(filter?: WorkItemFilter): URLSearchParams {
   const params = new URLSearchParams();
   if (!filter) return params;
@@ -94,6 +119,16 @@ export async function createWorkItem(projectId: number, data: CreateWorkItemRequ
   return response.data;
 }
 
+export async function getBugs(projectId: number): Promise<WorkItem[]> {
+  const response = await apiClient.get<WorkItem[]>(`/api/projects/${projectId}/bugs`);
+  return response.data;
+}
+
+export async function createBug(projectId: number, data: CreateBugRequest): Promise<WorkItem> {
+  const response = await apiClient.post<WorkItem>(`/api/projects/${projectId}/bugs`, data);
+  return response.data;
+}
+
 export async function updateWorkItem(id: number, data: UpdateWorkItemRequest): Promise<WorkItem> {
   const response = await apiClient.patch<WorkItem>(`/api/work-items/${id}`, data);
   return response.data;
@@ -128,46 +163,62 @@ export async function deleteWorkItem(id: number): Promise<void> {
 export interface CreateUserRequest {
   username: string;
   email: string;
-  temporaryPassword: string;
+  temporaryPassword?: string;
   role: "ADMIN" | "QA_PM" | "DEVELOPER" | "CLIENT";
+}
+
+export interface CreateUserByAdminResponse {
+  user: User;
+  emailWarning?: string;
 }
 
 export async function getUsers(): Promise<User[]> {
   const response = await apiClient.get<User[]>("/api/users");
-  return response.data;
+  return normalizeUsers(response.data);
 }
 
 export async function getUserById(id: number): Promise<User> {
   const response = await apiClient.get<User>(`/api/users/${id}`);
-  return response.data;
+  return normalizeUser(response.data);
 }
 
 export async function getCurrentUserProfile(): Promise<User> {
   const response = await apiClient.get<User>("/api/users/me");
-  return response.data;
+  return normalizeUser(response.data);
 }
 
 export async function deactivateUser(id: number): Promise<User> {
   const response = await apiClient.patch<User>(`/api/users/${id}/deactivate`);
-  return response.data;
+  return normalizeUser(response.data);
 }
 
 export async function activateUser(id: number): Promise<User> {
   const response = await apiClient.patch<User>(`/api/users/${id}/activate`);
-  return response.data;
+  return normalizeUser(response.data);
+}
+
+export async function deleteUser(id: number): Promise<void> {
+  await apiClient.delete(`/api/users/${id}`);
 }
 
 export async function createUser(data: CreateUserRequest): Promise<User> {
   const response = await apiClient.post<User>("/api/users", data);
-  return response.data;
+  return normalizeUser(response.data);
 }
 
 /**
  * Create user by admin (can create any role including ADMIN)
  */
-export async function createUserByAdmin(data: CreateUserRequest): Promise<User> {
-  const response = await apiClient.post<User>("/api/users", data);
-  return response.data;
+export async function createUserByAdmin(data: CreateUserRequest): Promise<CreateUserByAdminResponse> {
+  const response = await apiClient.post<CreateUserByAdminResponse>("/api/users", data);
+  return {
+    ...response.data,
+    user: response.data?.user ? normalizeUser(response.data.user) : response.data?.user,
+  };
+}
+
+export async function resendPasswordSetupEmail(userId: number): Promise<void> {
+  await apiClient.post(`/api/users/${userId}/resend-password-setup`);
 }
 
 // ─── Notifications ────────────────────────────────────────────────────────────

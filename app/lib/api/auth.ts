@@ -47,6 +47,10 @@ export interface SetPasswordWithTokenRequest {
   newPassword: string;
 }
 
+export interface ResendPasswordSetupRequest {
+  usernameOrEmail: string;
+}
+
 /**
  * Login user
  */
@@ -131,4 +135,12 @@ export async function register(data: RegisterRequest): Promise<RegisterResponse>
 
 export async function setPasswordWithToken(request: SetPasswordWithTokenRequest): Promise<void> {
   await apiClient.post("/api/auth/password-setup", request);
+}
+
+export async function resendMyPasswordSetupEmail(): Promise<void> {
+  await apiClient.post("/api/users/me/resend-password-setup");
+}
+
+export async function resendPasswordSetupLink(request: ResendPasswordSetupRequest): Promise<void> {
+  await apiClient.post("/api/auth/password-setup/resend", request);
 }

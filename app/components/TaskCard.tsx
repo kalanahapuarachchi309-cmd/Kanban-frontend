@@ -43,6 +43,11 @@ export default function TaskCard({ item }: { item: WorkItem }) {
   const priority = PRIORITY_CONFIG[item.priority];
   const type = TYPE_CONFIG[item.type];
   const due = formatDue(item.dueAt);
+  const qaFeedbackPrefix = "[QA/PM Feedback] ";
+  const hasQaFeedback = !!item.description?.startsWith(qaFeedbackPrefix);
+  const qaFeedbackMessage = hasQaFeedback
+    ? item.description?.replace(qaFeedbackPrefix, "").split("\n")[0]
+    : "";
   return (
     <div
       className="rounded-xl p-3 mb-2.5 cursor-pointer group transition-all hover:translate-y-[-1px] hover:shadow-lg"
@@ -69,6 +74,14 @@ export default function TaskCard({ item }: { item: WorkItem }) {
         <p className="text-gray-500 leading-relaxed mb-2 line-clamp-2" style={{ fontSize: "11px" }}>
           {item.description}
         </p>
+      )}
+      {hasQaFeedback && qaFeedbackMessage && (
+        <div
+          className="text-[10px] font-medium px-2 py-1 rounded mb-2"
+          style={{ background: "rgba(249,115,22,0.15)", color: "#fdba74" }}
+        >
+          QA/PM: {qaFeedbackMessage}
+        </div>
       )}
       {/* Due date */}
       {due && (

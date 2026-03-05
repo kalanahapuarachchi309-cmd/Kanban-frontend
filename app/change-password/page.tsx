@@ -1,20 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { changePassword } from "../lib/api/auth";
+import { useRouter, useSearchParams } from "next/navigation";
+import { changePassword, setPasswordWithToken } from "../lib/api/auth";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const token = searchParams.get("token") || "";
+  const isTokenFlow = token.length > 0;
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccess("");
 
     if (newPassword.length < 6) {
       setError("New password must be at least 6 characters.");
@@ -28,6 +33,13 @@ export default function ChangePasswordPage() {
 
     try {
       setIsLoading(true);
+      if (isTokenFlow) {
+        await setPasswordWithToken({ token, newPassword });
+        setSuccess("Password set successfully. You can now login.");
+        setTimeout(() => router.push("/login"), 1000);
+        return;
+      }
+
       await changePassword({ currentPassword, newPassword });
 
       const userRaw = localStorage.getItem("user");
@@ -52,7 +64,11 @@ export default function ChangePasswordPage() {
     <div className="flex items-center justify-center min-h-screen" style={{ background: "#0d0f14" }}>
       <div className="w-full max-w-md p-8 rounded-lg" style={{ background: "#1a1d25", border: "1px solid #2a2d38" }}>
         <h1 className="text-2xl font-bold text-white mb-2 text-center">Change Password</h1>
-        <p className="text-gray-400 text-sm mb-6 text-center">You must set a new password before continuing.</p>
+        <p className="text-gray-400 text-sm mb-6 text-center">
+          {isTokenFlow
+            ? "Use this secure link to set your password."
+            : "You must set a new password before continuing."}
+        </p>
 
         {error && (
           <div className="mb-4 p-3 rounded bg-red-500/10 border border-red-500/50 text-red-400 text-sm">
@@ -60,18 +76,26 @@ export default function ChangePasswordPage() {
           </div>
         )}
 
-        <form onSubmit={onSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
-            <input
-              id="currentPassword"
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              required
-              className="w-full px-4 py-2 rounded bg-[#0d0f14] border border-gray-700 text-white focus:outline-none focus:border-blue-500"
-            />
+        {success && (
+          <div className="mb-4 p-3 rounded bg-green-500/10 border border-green-500/50 text-green-400 text-sm">
+            {success}
           </div>
+        )}
+
+        <form onSubmit={onSubmit} className="space-y-4">
+          {!isTokenFlow && (
+            <div>
+              <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-300 mb-2">Current Password</label>
+              <input
+                id="currentPassword"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+                className="w-full px-4 py-2 rounded bg-[#0d0f14] border border-gray-700 text-white focus:outline-none focus:border-blue-500"
+              />
+            </div>
+          )}
 
           <div>
             <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300 mb-2">New Password</label>

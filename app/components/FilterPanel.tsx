@@ -18,6 +18,14 @@ export default function FilterPanel({ filter, onChange, onClose, members }: Prop
   const set = <K extends keyof WorkItemFilter>(key: K, val: WorkItemFilter[K]) =>
     onChange({ ...filter, [key]: val });
 
+  const assignedToValue = (() => {
+    if (filter.assignedTo === "unassigned") return "unassigned";
+    if (typeof filter.assignedTo === "number" && !Number.isNaN(filter.assignedTo)) {
+      return String(filter.assignedTo);
+    }
+    return "";
+  })();
+
   const hasActive = Object.values(filter).some((v) => v !== "" && v !== undefined);
 
   return (
@@ -116,7 +124,24 @@ export default function FilterPanel({ filter, onChange, onClose, members }: Prop
           Assigned To
         </label>
         <div className="relative">
-          <select className={SELECT_CLS} style={BORDER} value={filter.assignedTo ?? ""} onChange={(e) => set("assignedTo", e.target.value ? Number(e.target.value) : "")}>
+          <select
+            className={SELECT_CLS}
+            style={BORDER}
+            value={assignedToValue}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (!value) {
+                set("assignedTo", "");
+                return;
+              }
+              if (value === "unassigned") {
+                set("assignedTo", "unassigned");
+                return;
+              }
+              const parsed = Number(value);
+              set("assignedTo", Number.isNaN(parsed) ? "" : parsed);
+            }}
+          >
             <option value="">Anyone</option>
             <option value="unassigned">Unassigned</option>
             {members.map((m) => (

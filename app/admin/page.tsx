@@ -12,6 +12,8 @@ import {
   getProjectMembers,
   deactivateUser,
   activateUser,
+  deleteUser,
+  resendPasswordSetupEmail,
 } from "../lib/api/services";
 import type { User, Project, ProjectMember } from "../types";
 
@@ -20,7 +22,6 @@ type Role = "ADMIN" | "QA_PM" | "DEVELOPER" | "CLIENT";
 interface CreateUserForm {
   username: string;
   email: string;
-  temporaryPassword: string;
   role: Role;
 }
 
@@ -53,6 +54,9 @@ export default function AdminPanel() {
   const [isCreatingUser, setIsCreatingUser] = useState(false);
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
+  const [resendingForUserId, setResendingForUserId] = useState<number | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
+  const [showEmailConfigBadge, setShowEmailConfigBadge] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
@@ -65,7 +69,6 @@ export default function AdminPanel() {
   const [formData, setFormData] = useState<CreateUserForm>({
     username: "",
     email: "",
-    temporaryPassword: "",
     role: "DEVELOPER",
   });
 
@@ -86,9 +89,23 @@ export default function AdminPanel() {
       .catch(() => setProjectMembers([]));
   }, [selectedProjectId]);
 
+  const shouldShowEmailConfigBadge = (message?: string) => {
+    if (!message) return false;
+    const normalized = message.toLowerCase();
+    return (
+      normalized.includes("smtp") ||
+      normalized.includes("spring.mail") ||
+      normalized.includes("app.email.from") ||
+      normalized.includes("unable to send email") ||
+      normalized.includes("authentication failed") ||
+      normalized.includes("authentication error")
+    );
+  };
+
   const fetchInitialData = async () => {
     try {
       setIsLoading(true);
+      setError("");
       const [usersData, projectsData] = await Promise.all([
         getUsers(),
         getProjects(),
@@ -100,8 +117,20 @@ export default function AdminPanel() {
       if (projectsData.length > 0) {
         setSelectedProjectId(projectsData[0].id);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error fetching users:", err);
+      const status = err?.response?.status;
+      const backendMessage = err?.response?.data?.message;
+
+      if (status === 401) {
+        setError("Your session has expired. Please login again.");
+      } else if (status === 403) {
+        setError("You do not have permission to view users. Please login as an admin.");
+      } else if (status === 500) {
+        setError(backendMessage || "Server error while loading users. Check backend logs for details.");
+      } else {
+        setError(backendMessage || "Failed to load admin data.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -138,16 +167,24 @@ export default function AdminPanel() {
 
     try {
       setIsCreatingUser(true);
-      await createUserByAdmin({
+      const created = await createUserByAdmin({
         ...formData,
         username: normalizedUsername,
         email: normalizedEmail,
+        temporaryPassword: Math.random().toString(36).slice(-10) + "A1",
       });
-      setSuccess(`User ${normalizedUsername} created. Password setup link has been sent by email.`);
+      if (created.emailWarning) {
+        setSuccess(`User ${normalizedUsername} created successfully.`);
+        setError(created.emailWarning);
+        if (shouldShowEmailConfigBadge(created.emailWarning)) {
+          setShowEmailConfigBadge(true);
+        }
+      } else {
+        setSuccess(`User ${normalizedUsername} created successfully. Password setup email sent.`);
+      }
       setFormData({
         username: "",
         email: "",
-        temporaryPassword: "",
         role: "DEVELOPER",
       });
       setShowCreateUserForm(false);
@@ -155,6 +192,9 @@ export default function AdminPanel() {
     } catch (err: any) {
       const backendMessage = err.response?.data?.message;
       const isConflict = err.response?.status === 409;
+      if (shouldShowEmailConfigBadge(backendMessage)) {
+        setShowEmailConfigBadge(true);
+      }
       setError(
         backendMessage ||
           (isConflict
@@ -212,6 +252,11 @@ export default function AdminPanel() {
   };
 
   const toggleUserStatus = async (target: User) => {
+    if (target.role === "ADMIN") {
+      setError("Admin accounts cannot be activated/deactivated from this panel.");
+      return;
+    }
+
     try {
       setError("");
       setSuccess("");
@@ -226,6 +271,45 @@ export default function AdminPanel() {
       setUsers(data);
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to update user status");
+    }
+  };
+
+  const handleResendSetupEmail = async (target: User) => {
+    try {
+      setError("");
+      setSuccess("");
+      setResendingForUserId(target.id);
+      await resendPasswordSetupEmail(target.id);
+      setSuccess(`Password setup email sent to ${target.email}.`);
+    } catch (err: any) {
+      const backendMessage = err.response?.data?.message;
+      if (shouldShowEmailConfigBadge(backendMessage)) {
+        setShowEmailConfigBadge(true);
+      }
+      setError(backendMessage || "Failed to resend password setup email");
+    } finally {
+      setResendingForUserId(null);
+    }
+  };
+
+  const handleDeleteUser = async (target: User) => {
+    const confirmed = window.confirm(`Delete user ${target.username}? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setError("");
+      setSuccess("");
+      setDeletingUserId(target.id);
+      await deleteUser(target.id);
+      setSuccess(`User ${target.username} deleted.`);
+      const data = await getUsers();
+      setUsers(data);
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to delete user");
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -246,6 +330,11 @@ export default function AdminPanel() {
           <div>
             <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
             <p className="text-gray-400 text-sm">Manage users and system settings</p>
+            {showEmailConfigBadge && (
+              <div className="mt-2 inline-flex items-center rounded border border-yellow-500/60 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-300">
+                Email not configured (SMTP authentication failed)
+              </div>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -398,6 +487,9 @@ export default function AdminPanel() {
         {showCreateUserForm && (
           <div className="mb-6 p-6 rounded-lg" style={{ background: "#1a1d25", border: "1px solid #2a2d38" }}>
             <h2 className="text-lg font-semibold text-white mb-4">Create New User</h2>
+            <p className="text-sm text-gray-400 mb-4">
+              Creating a user only saves the account. Use "Resend Setup Email" from the users list when needed.
+            </p>
             <form onSubmit={handleCreateUser} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -424,19 +516,7 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">Temporary Password</label>
-                  <input
-                    type="password"
-                    value={formData.temporaryPassword}
-                    onChange={(e) => setFormData({ ...formData, temporaryPassword: e.target.value })}
-                    required
-                    minLength={6}
-                    className="w-full px-3 py-2 rounded bg-[#0d0f14] border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
-                    placeholder="Min 6 characters"
-                  />
-                </div>
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-2">Role</label>
                   <select
@@ -524,18 +604,38 @@ export default function AdminPanel() {
                         </span>
                       </td>
                       <td className="p-4">
-                        {u.id !== user.id && (
+                        <div className="flex items-center gap-2">
                           <button
-                            onClick={() => toggleUserStatus(u)}
-                            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-                              u.isActive
-                                ? "bg-red-500/20 text-red-300 hover:bg-red-500/30"
-                                : "bg-green-500/20 text-green-300 hover:bg-green-500/30"
-                            }`}
+                            onClick={() => handleResendSetupEmail(u)}
+                            disabled={!u.isActive || resendingForUserId === u.id}
+                            className="px-2 py-1 rounded text-xs font-medium transition-colors bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
-                            {u.isActive ? "Deactivate" : "Activate"}
+                            {resendingForUserId === u.id ? "Sending..." : "Resend Setup Email"}
                           </button>
-                        )}
+
+                          {u.id !== user.id && (
+                            <>
+                              <button
+                                onClick={() => toggleUserStatus(u)}
+                                disabled={u.role === "ADMIN"}
+                                className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+                                  u.isActive
+                                    ? "bg-red-500/20 text-red-300 hover:bg-red-500/30"
+                                    : "bg-red-500/20 text-red-300 hover:bg-red-500/30"
+                                } disabled:opacity-50 disabled:cursor-not-allowed`}
+                              >
+                                {u.role === "ADMIN" ? "Protected" : u.isActive ? "Deactivate" : "Activate"}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteUser(u)}
+                                disabled={deletingUserId === u.id || u.role === "ADMIN"}
+                                className="px-2 py-1 rounded text-xs font-medium transition-colors bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                {deletingUserId === u.id ? "Deleting..." : "Delete"}
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4 text-gray-400 text-sm">
                         {u.createdAt ? new Date(u.createdAt).toLocaleDateString() : "N/A"}

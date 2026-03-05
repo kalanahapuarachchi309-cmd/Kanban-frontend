@@ -4,33 +4,52 @@ import { useState } from "react";
 import { useAuth } from "../lib/auth-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { getCurrentUser } from "../lib/api/auth";
+import { resendPasswordSetupLink } from "../lib/api/auth";
 
 export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isResending, setIsResending] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setInfo("");
     setIsLoading(true);
 
     try {
       await login({ username, password });
-      const currentUser = getCurrentUser();
-      if (currentUser?.mustChangePassword) {
-        router.push("/change-password");
-        return;
-      }
       router.push("/");
     } catch (err: any) {
       setError(err.response?.data?.message || "Login failed. Please check your credentials.");
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleResendSetupEmail = async () => {
+    setError("");
+    setInfo("");
+
+    const identifier = username.trim();
+    if (!identifier) {
+      setError("Enter your username or email first.");
+      return;
+    }
+
+    try {
+      setIsResending(true);
+      await resendPasswordSetupLink({ usernameOrEmail: identifier });
+      setInfo("Password setup email sent. Please check your inbox.");
+    } catch (err: any) {
+      setError(err.response?.data?.message || "Failed to resend password setup email.");
+    } finally {
+      setIsResending(false);
     }
   };
 
@@ -43,6 +62,12 @@ export default function LoginPage() {
         {error && (
           <div className="mb-4 p-3 rounded bg-red-500/10 border border-red-500/50 text-red-400 text-sm">
             {error}
+          </div>
+        )}
+
+        {info && (
+          <div className="mb-4 p-3 rounded bg-green-500/10 border border-green-500/50 text-green-400 text-sm">
+            {info}
           </div>
         )}
 
@@ -85,6 +110,15 @@ export default function LoginPage() {
             {isLoading ? "Signing in..." : "Sign In"}
           </button>
         </form>
+
+        <button
+          type="button"
+          onClick={handleResendSetupEmail}
+          disabled={isResending}
+          className="mt-3 w-full py-2 px-4 bg-gray-700 hover:bg-gray-600 disabled:bg-gray-700/50 text-white font-medium rounded transition-colors"
+        >
+          {isResending ? "Sending..." : "Resend Password Setup Email"}
+        </button>
 
         <p className="mt-6 text-center text-sm text-gray-400">
           Don't have an account?{" "}

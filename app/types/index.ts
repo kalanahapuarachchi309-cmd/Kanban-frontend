@@ -109,13 +109,17 @@ export const ALLOWED_TRANSITIONS: Record<
   WorkItemStatus,
   { to: WorkItemStatus; allowedRoles: Role[] }[]
 > = {
-  BUG_LIST: [{ to: "IN_PROGRESS", allowedRoles: ["DEVELOPER"] }],
+  BUG_LIST: [{ to: "IN_PROGRESS", allowedRoles: ["DEVELOPER", "QA_PM", "ADMIN"] }],
   IN_PROGRESS: [{ to: "QA_FIX", allowedRoles: ["DEVELOPER"] }],
   QA_FIX: [
     { to: "DONE", allowedRoles: ["QA_PM"] },
     { to: "BUG_LIST", allowedRoles: ["QA_PM"] },
+    { to: "IN_PROGRESS", allowedRoles: ["QA_PM"] },
   ],
-  DONE: [{ to: "PUBLISHED", allowedRoles: ["QA_PM"] }],
+  DONE: [
+    { to: "PUBLISHED", allowedRoles: ["QA_PM"] },
+    { to: "IN_PROGRESS", allowedRoles: ["QA_PM"] },
+  ],
   PUBLISHED: [
     { to: "ACCEPTED", allowedRoles: ["CLIENT"] },
     { to: "BUG_LIST", allowedRoles: ["CLIENT"] }, // REJECTED

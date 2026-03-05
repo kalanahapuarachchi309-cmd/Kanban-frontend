@@ -7,14 +7,6 @@ import { Home, CheckSquare, FolderKanban, Settings, Users, Plus, Layers, Shield,
 import { Project, Role } from "../types";
 import { useAuth } from "../lib/auth-context";
 
-const MOCK_PROJECTS: Project[] = [
-  { id: 1, name: "ECommerce Platform", color: "#6366f1", memberCount: 5, createdBy: 1 },
-  { id: 2, name: "Mobile App v2",       color: "#f97316", memberCount: 3, createdBy: 1 },
-  { id: 3, name: "CRM Backend",         color: "#22c55e", memberCount: 7, createdBy: 1 },
-  { id: 4, name: "Analytics Dashboard", color: "#f59e0b", memberCount: 4, createdBy: 1 },
-  { id: 5, name: "Auth Service",        color: "#ef4444", memberCount: 2, createdBy: 1 },
-];
-
 const ROLE_LABELS: Record<Role, string> = {
   ADMIN: "Admin", QA_PM: "QA / PM", DEVELOPER: "Developer", CLIENT: "Client",
 };
@@ -22,11 +14,13 @@ const ROLE_LABELS: Record<Role, string> = {
 export default function Sidebar({
   activeProjectId,
   onSelectProject,
+  projects = [],
   currentRole,
   onRoleChange,
 }: {
-  activeProjectId: number;
+  activeProjectId: number | null;
   onSelectProject: (id: number) => void;
+  projects?: Project[];
   currentRole: Role;
   onRoleChange: (r: Role) => void;
 }) {
@@ -96,7 +90,7 @@ export default function Sidebar({
             <p className="text-gray-600 uppercase font-semibold tracking-widest" style={{ fontSize: "10px" }}>Projects</p>
             <button className="text-gray-600 hover:text-gray-300 transition-colors"><Plus size={12} /></button>
           </div>
-          {MOCK_PROJECTS.map((p) => {
+          {projects.map((p) => {
             const active = p.id === activeProjectId;
             return (
               <button key={p.id} onClick={() => onSelectProject(p.id)}
@@ -109,10 +103,13 @@ export default function Sidebar({
                 onMouseLeave={(e) => { if (!active) (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}>
                 <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: p.color }} />
                 <span className="text-xs flex-1 text-left truncate" style={{ color: active ? "#e2e8f0" : "#9ca3af" }}>{p.name}</span>
-                <span className="text-gray-600" style={{ fontSize: "10px" }}>{p.memberCount}</span>
+                <span className="text-gray-600" style={{ fontSize: "10px" }}>{p.memberCount ?? 0}</span>
               </button>
             );
           })}
+          {projects.length === 0 && (
+            <p className="px-2 py-1 text-xs text-gray-500">No projects found</p>
+          )}
         </div>
 
         <div className="mx-3 h-px my-3" style={{ background: "rgba(255,255,255,0.06)" }} />
@@ -121,10 +118,15 @@ export default function Sidebar({
         <div className="px-3">
           <p className="text-gray-600 mb-2 uppercase font-semibold tracking-widest" style={{ fontSize: "10px" }}>Quick Access</p>
           {([
-            { label: "All Work Items", icon: CheckSquare, href: "/" },
-            { label: "My Assignments", icon: Layers, href: "/" },
-            { label: "Team Members",   icon: Users, href: "/" },
-          ] as { label: string; icon: React.ElementType; href: string }[]).map(({ label, icon: Icon, href }) => (
+              { label: "All Work Items", icon: CheckSquare, href: "/" },
+              ...(user?.role !== "CLIENT"
+                ? [
+                    { label: "Bug List", icon: Layers, href: "/bugs?type=BUG" },
+                    { label: "Feature List", icon: Layers, href: "/bugs?type=FEATURE" },
+                  ]
+                : []),
+              { label: "Team Members",   icon: Users, href: "/" },
+            ] as { label: string; icon: React.ElementType; href: string }[]).map(({ label, icon: Icon, href }) => (
             <Link key={label} href={href} className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-white/5 transition-colors group mb-0.5">
               <Icon size={12} className="text-gray-600 group-hover:text-gray-400 transition-colors" />
               <span className="text-gray-400 text-xs group-hover:text-gray-200 transition-colors">{label}</span>

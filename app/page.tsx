@@ -6,7 +6,7 @@ import Sidebar from "./components/Sidebar";
 import Header from "./components/Header";
 import KanbanColumn from "./components/KanbanColumn";
 import FilterPanel from "./components/FilterPanel";
-import { WorkItem, WorkItemStatus, Role, Notification, WorkItemFilter, User } from "./types";
+import { WorkItem, WorkItemStatus, Role, Notification, WorkItemFilter, User, Project } from "./types";
 import { useAuth } from "./lib/auth-context";
 import {
   getWorkItems,
@@ -34,11 +34,11 @@ export default function Home() {
   const [workItems, setWorkItems] = useState<WorkItem[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [projects, setProjects] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  const [activeProjectId, setActiveProjectId] = useState<number>(1);
+  const [activeProjectId, setActiveProjectId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"Kanban" | "Table" | "List">("Kanban");
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<WorkItemFilter>({ sortBy: "newest" });
@@ -61,16 +61,28 @@ export default function Home() {
         assignedTo: filter.assignedTo === "unassigned" ? "" : filter.assignedTo,
       };
 
-      const [projectsData, workItemsData, usersData, notificationsData] = await Promise.all([
+      const [projectsData, usersData, notificationsData] = await Promise.all([
         getProjects().catch(() => []),
-        getWorkItems(activeProjectId, backendFilter).catch(() => []),
         getUsers().catch(() => []),
         getNotifications().catch(() => []),
       ]);
 
+      const selectedProjectId =
+        activeProjectId && projectsData.some((p) => p.id === activeProjectId)
+          ? activeProjectId
+          : projectsData[0]?.id ?? null;
+
+      if (selectedProjectId !== activeProjectId) {
+        setActiveProjectId(selectedProjectId);
+      }
+
+      const workItemsData = selectedProjectId
+        ? await getWorkItems(selectedProjectId, backendFilter).catch(() => [])
+        : [];
+
       setProjects(projectsData);
-      setWorkItems(workItemsData as any);
-      setUsers(usersData as any);
+      setWorkItems(workItemsData);
+      setUsers(usersData);
       setNotifications(notificationsData);
     } catch (err: any) {
       console.error("Error fetching data:", err);
@@ -92,7 +104,7 @@ export default function Home() {
 
     const cleanup = connectNotificationSocket(token, (incoming) => {
       setNotifications((prev) => [incoming, ...prev]);
-      if (incoming.type === "STATUS_CHANGED" || incoming.type === "ASSIGNMENT_CREATED") {
+      if ((incoming.type === "STATUS_CHANGED" || incoming.type === "ASSIGNMENT_CREATED") && activeProjectId) {
         getWorkItems(activeProjectId, {
           ...filter,
           assignedTo: filter.assignedTo === "unassigned" ? "" : filter.assignedTo,
@@ -154,6 +166,7 @@ export default function Home() {
       <Sidebar
         activeProjectId={activeProjectId}
         onSelectProject={setActiveProjectId}
+        projects={projects}
         currentRole={currentRole}
         onRoleChange={() => {}} // Role changes happen via backend now
       />
