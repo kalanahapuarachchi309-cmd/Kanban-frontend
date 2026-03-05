@@ -36,7 +36,12 @@ export interface CreateProjectRequest {
 }
 
 export async function getProjects(): Promise<Project[]> {
-  const response = await apiClient.get<Project[]>("/api/projects");
+  const response = await apiClient.get<Project[]>(`/api/projects?_ts=${Date.now()}`, {
+    headers: {
+      "Cache-Control": "no-cache",
+      Pragma: "no-cache",
+    },
+  });
   return response.data;
 }
 
@@ -154,7 +159,7 @@ export async function submitClientReview(id: number, reviewStatus: ClientReviewS
   return response.data;
 }
 
-export async function deleteWorkItem(id: number): Promise<void> {
+export async function deleteWorkItem(id: number, _projectId?: number): Promise<void> {
   await apiClient.delete(`/api/work-items/${id}`);
 }
 
@@ -174,6 +179,11 @@ export interface CreateUserByAdminResponse {
 
 export async function getUsers(): Promise<User[]> {
   const response = await apiClient.get<User[]>("/api/users");
+  return normalizeUsers(response.data);
+}
+
+export async function getDeveloperUsers(): Promise<User[]> {
+  const response = await apiClient.get<User[]>('/api/users/developers');
   return normalizeUsers(response.data);
 }
 

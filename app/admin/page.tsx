@@ -48,6 +48,7 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectMembers, setProjectMembers] = useState<ProjectMember[]>([]);
+  const [projectMembersByProject, setProjectMembersByProject] = useState<Record<number, ProjectMember[]>>({});
   const [selectedProjectId, setSelectedProjectId] = useState<number | "">("");
   const [isLoading, setIsLoading] = useState(true);
   const [showCreateUserForm, setShowCreateUserForm] = useState(false);
@@ -61,8 +62,8 @@ export default function AdminPanel() {
   const [success, setSuccess] = useState("");
 
   const [projectForm, setProjectForm] = useState({ name: "", description: "" });
-  const [memberForm, setMemberForm] = useState<{ userId: number | ""; role: Role }>({
-    userId: "",
+  const [memberForm, setMemberForm] = useState<{ userIds: number[]; role: Role }>({
+    userIds: [],
     role: "DEVELOPER",
   });
 
@@ -89,6 +90,26 @@ export default function AdminPanel() {
       .catch(() => setProjectMembers([]));
   }, [selectedProjectId]);
 
+  const loadProjectMemberships = async (projectList: Project[]) => {
+    if (projectList.length === 0) {
+      setProjectMembersByProject({});
+      return;
+    }
+
+    const entries = await Promise.all(
+      projectList.map(async (project) => {
+        try {
+          const members = await getProjectMembers(project.id);
+          return [project.id, members] as const;
+        } catch {
+          return [project.id, []] as const;
+        }
+      })
+    );
+
+    setProjectMembersByProject(Object.fromEntries(entries));
+  };
+
   const shouldShowEmailConfigBadge = (message?: string) => {
     if (!message) return false;
     const normalized = message.toLowerCase();
@@ -113,6 +134,7 @@ export default function AdminPanel() {
 
       setUsers(usersData);
       setProjects(projectsData);
+      await loadProjectMemberships(projectsData);
 
       if (projectsData.length > 0) {
         setSelectedProjectId(projectsData[0].id);
@@ -219,6 +241,7 @@ export default function AdminPanel() {
 
       const updatedProjects = await getProjects();
       setProjects(updatedProjects);
+      await loadProjectMemberships(updatedProjects);
       setSelectedProjectId(created.id);
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to create project");
@@ -232,18 +255,32 @@ export default function AdminPanel() {
     setError("");
     setSuccess("");
 
-    if (!selectedProjectId || !memberForm.userId) {
-      setError("Please select a project and user.");
+    if (!selectedProjectId || memberForm.userIds.length === 0) {
+      setError("Please select a project and at least one user.");
       return;
     }
 
     try {
       setIsAddingMember(true);
-      await addProjectMember(selectedProjectId, memberForm.userId, memberForm.role);
-      setSuccess("User added to project successfully.");
-      setMemberForm({ userId: "", role: "DEVELOPER" });
+      const results = await Promise.allSettled(
+        memberForm.userIds.map((userId) => addProjectMember(selectedProjectId, userId, memberForm.role))
+      );
+
+      const addedCount = results.filter((result) => result.status === "fulfilled").length;
+      const failedCount = results.length - addedCount;
+
+      if (addedCount > 0 && failedCount === 0) {
+        setSuccess(`${addedCount} user(s) added to project successfully.`);
+      } else if (addedCount > 0) {
+        setSuccess(`${addedCount} user(s) added. ${failedCount} failed (already member or invalid).`);
+      } else {
+        setError("Failed to add selected users to project.");
+      }
+
+      setMemberForm({ userIds: [], role: "DEVELOPER" });
       const members = await getProjectMembers(selectedProjectId);
       setProjectMembers(members);
+      setProjectMembersByProject((prev) => ({ ...prev, [selectedProjectId]: members }));
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to add user to project");
     } finally {
@@ -321,6 +358,13 @@ export default function AdminPanel() {
   if (user?.role !== "ADMIN") {
     return null;
   }
+
+  const assignedUserIds = new Set(projectMembers.map((member) => member.user.id));
+  const roleUsers = users.filter((u) => u.role === memberForm.role);
+  const selectableRoleUsersCount = roleUsers.filter(
+    (u) => u.isActive !== false && !assignedUserIds.has(u.id)
+  ).length;
+  const selectedRoleLabel = ROLE_OPTIONS.find((option) => option.value === memberForm.role)?.label || memberForm.role;
 
   return (
     <div className="h-screen overflow-y-auto p-6" style={{ background: "#0d0f14" }}>
@@ -416,17 +460,40 @@ export default function AdminPanel() {
               ))}
             </select>
 
-            <select
-              value={memberForm.userId}
-              onChange={(e) => setMemberForm({ ...memberForm, userId: e.target.value ? Number(e.target.value) : "" })}
-              className="px-3 py-2 rounded bg-[#0d0f14] border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
-              required
-            >
-              <option value="">Select user</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>{u.username} ({u.email})</option>
-              ))}
-            </select>
+              <div className="px-3 py-2 rounded bg-[#0d0f14] border border-gray-700 text-white text-sm">
+              <div className="text-xs text-gray-400 mb-2">Select {selectedRoleLabel} users ({memberForm.userIds.length} selected)</div>
+              <div className="max-h-28 overflow-y-auto space-y-1">
+                {roleUsers.map((u) => {
+                  const checked = memberForm.userIds.includes(u.id);
+                  const alreadyAssigned = assignedUserIds.has(u.id);
+                  const inactive = u.isActive === false;
+                  const disabled = alreadyAssigned || inactive;
+                  return (
+                    <label key={u.id} className={`flex items-center gap-2 text-sm ${disabled ? "text-gray-500" : "text-gray-200 cursor-pointer"}`}>
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={(e) => {
+                          setMemberForm((prev) => ({
+                            ...prev,
+                            userIds: e.target.checked
+                              ? [...prev.userIds, u.id]
+                              : prev.userIds.filter((id) => id !== u.id),
+                          }));
+                        }}
+                        className="accent-emerald-500"
+                      />
+                      <span>
+                        {u.username} ({u.email})
+                        {alreadyAssigned ? " - already assigned" : ""}
+                        {inactive ? " - inactive" : ""}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
 
             <select
               value={memberForm.role}
@@ -441,12 +508,16 @@ export default function AdminPanel() {
 
             <button
               type="submit"
-              disabled={isAddingMember}
+              disabled={isAddingMember || memberForm.userIds.length === 0}
               className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/50 text-white rounded transition-colors"
             >
               {isAddingMember ? "Adding..." : "Add Member"}
             </button>
           </form>
+
+          {selectableRoleUsersCount === 0 && selectedProjectId && (
+            <p className="text-xs text-gray-400 mb-4">No available active {selectedRoleLabel} users for this project.</p>
+          )}
 
           <div className="rounded border border-gray-700/60 overflow-hidden">
             <table className="w-full">
@@ -481,6 +552,78 @@ export default function AdminPanel() {
               </tbody>
             </table>
           </div>
+
+          <div className="mt-4 rounded border border-gray-700/60 overflow-hidden">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-700">
+                  <th className="text-left p-3 text-xs font-medium text-gray-400">PROJECT</th>
+                  <th className="text-left p-3 text-xs font-medium text-gray-400">QA/PM</th>
+                  <th className="text-left p-3 text-xs font-medium text-gray-400">DEVELOPERS</th>
+                  <th className="text-left p-3 text-xs font-medium text-gray-400">CLIENTS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projects.length === 0 ? (
+                  <tr>
+                    <td className="p-3 text-sm text-gray-500" colSpan={4}>No projects available.</td>
+                  </tr>
+                ) : (
+                  projects.map((project) => {
+                    const members = project.id === selectedProjectId
+                      ? projectMembers
+                      : (projectMembersByProject[project.id] || []);
+                    const qaPmMembers = members.filter((member) => member.role === "QA_PM");
+                    const developerMembers = members.filter(
+                      (member) => member.role === "DEVELOPER" || member.user?.role === "DEVELOPER"
+                    );
+                    const clientMembers = members.filter(
+                      (member) => member.role === "CLIENT" || member.user?.role === "CLIENT"
+                    );
+                    return (
+                      <tr key={project.id} className="border-b border-gray-700/40">
+                        <td className="p-3 text-sm text-white">{project.name}</td>
+                        <td className="p-3 text-sm text-gray-300">
+                          {qaPmMembers.length === 0 ? (
+                            "No QA/PM assigned"
+                          ) : (
+                            <div className="space-y-1">
+                              {qaPmMembers.map((member) => (
+                                <div key={`qa-${member.id}`}>{member.user.username}</div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 text-sm text-gray-300">
+                          {developerMembers.length === 0 ? (
+                            "No developers assigned"
+                          ) : (
+                            <div className="space-y-1">
+                              {developerMembers.map((member) => (
+                                <div key={`dev-${member.id}`}>{member.user.username}</div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="p-3 text-sm text-gray-300">
+                          {clientMembers.length === 0 ? (
+                            "No clients assigned"
+                          ) : (
+                            <div className="space-y-1">
+                              {clientMembers.map((member) => (
+                                <div key={`client-${member.id}`}>{member.user.username}</div>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+
         </div>
 
         {/* Create User Form */}

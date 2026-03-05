@@ -105,10 +105,11 @@ export default function Home() {
     const cleanup = connectNotificationSocket(token, (incoming) => {
       setNotifications((prev) => [incoming, ...prev]);
       if ((incoming.type === "STATUS_CHANGED" || incoming.type === "ASSIGNMENT_CREATED") && activeProjectId) {
-        getWorkItems(activeProjectId, {
+        const backendFilter = {
           ...filter,
           assignedTo: filter.assignedTo === "unassigned" ? "" : filter.assignedTo,
-        }).then((data) => setWorkItems(data));
+        };
+        getWorkItems(activeProjectId, backendFilter).then((data) => setWorkItems(data));
       }
     });
 

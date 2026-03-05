@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { WorkItem, Priority, WorkItemType } from "../types";
 import { MessageCircle, Paperclip, Calendar, AlertTriangle, Zap } from "lucide-react";
 
@@ -40,16 +41,28 @@ type _OldTask = {
 };
 
 export default function TaskCard({ item }: { item: WorkItem }) {
+  const [showQaMessage, setShowQaMessage] = useState(false);
   const priority = PRIORITY_CONFIG[item.priority];
   const type = TYPE_CONFIG[item.type];
   const due = formatDue(item.dueAt);
   const qaFeedbackPrefix = "[QA/PM Feedback] ";
-  const hasQaFeedback = !!item.description?.startsWith(qaFeedbackPrefix);
-  const qaFeedbackMessage = hasQaFeedback
-    ? item.description?.replace(qaFeedbackPrefix, "").split("\n")[0]
-    : "";
+  const descriptionText = item.description || "";
+  const descriptionLines = descriptionText.split("\n");
+  const qaFeedbackLine = descriptionLines.find((line) => line.startsWith(qaFeedbackPrefix)) || "";
+  const qaFeedbackMessage = qaFeedbackLine.replace(qaFeedbackPrefix, "").trim();
+  const hasQaFeedback = qaFeedbackMessage.length > 0;
+  const normalDescription = descriptionLines
+    .filter((line) => !line.startsWith(qaFeedbackPrefix))
+    .join("\n")
+    .trim();
+
   return (
     <div
+      onClick={() => {
+        if (hasQaFeedback) {
+          setShowQaMessage((prev) => !prev);
+        }
+      }}
       className="rounded-xl p-3 mb-2.5 cursor-pointer group transition-all hover:translate-y-[-1px] hover:shadow-lg"
       style={{ background: "#1a1d27", border: "1px solid rgba(255,255,255,0.07)", boxShadow: "0 2px 8px rgba(0,0,0,0.25)" }}
     >
@@ -70,9 +83,9 @@ export default function TaskCard({ item }: { item: WorkItem }) {
         {item.title}
       </p>
       {/* Description */}
-      {item.description && (
+      {normalDescription && (
         <p className="text-gray-500 leading-relaxed mb-2 line-clamp-2" style={{ fontSize: "11px" }}>
-          {item.description}
+          {normalDescription}
         </p>
       )}
       {hasQaFeedback && qaFeedbackMessage && (
@@ -80,7 +93,12 @@ export default function TaskCard({ item }: { item: WorkItem }) {
           className="text-[10px] font-medium px-2 py-1 rounded mb-2"
           style={{ background: "rgba(249,115,22,0.15)", color: "#fdba74" }}
         >
-          QA/PM: {qaFeedbackMessage}
+          QA/PM new message (click card)
+        </div>
+      )}
+      {hasQaFeedback && showQaMessage && (
+        <div className="text-[11px] px-2 py-2 rounded mb-2" style={{ background: "rgba(249,115,22,0.12)", color: "#fed7aa" }}>
+          {qaFeedbackMessage}
         </div>
       )}
       {/* Due date */}
