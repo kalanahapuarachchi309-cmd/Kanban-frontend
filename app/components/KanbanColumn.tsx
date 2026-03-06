@@ -11,6 +11,8 @@ type Props = {
   items: WorkItem[];
   currentRole: Role;
   onAddItem?: () => void;
+  onClientReview?: (id: number, reviewStatus: "ACCEPTED" | "REJECTED") => void;
+  clientReviewLoadingId?: number | null;
 };
 
 const STATUS_DESCRIPTIONS: Record<WorkItemStatus, string> = {
@@ -22,7 +24,16 @@ const STATUS_DESCRIPTIONS: Record<WorkItemStatus, string> = {
   ACCEPTED:    "Approved by client",
 };
 
-export default function KanbanColumn({ status, title, accentColor, items, currentRole, onAddItem }: Props) {
+export default function KanbanColumn({
+  status,
+  title,
+  accentColor,
+  items,
+  currentRole,
+  onAddItem,
+  onClientReview,
+  clientReviewLoadingId,
+}: Props) {
   const canAdd = (currentRole === "QA_PM" || currentRole === "ADMIN") && status === "BUG_LIST";
   return (
     <div className="flex flex-col rounded-2xl flex-shrink-0"
@@ -56,7 +67,15 @@ export default function KanbanColumn({ status, title, accentColor, items, curren
           <div className="flex items-center justify-center h-20 rounded-xl border-dashed border text-gray-700 text-xs mt-1"
             style={{ borderColor: "rgba(255,255,255,0.06)" }}>No items</div>
         ) : (
-          items.map((item) => <TaskCard key={item.id} item={item} />)
+          items.map((item) => (
+            <TaskCard
+              key={item.id}
+              item={item}
+              currentRole={currentRole}
+              onClientReview={onClientReview}
+              clientReviewLoading={clientReviewLoadingId === item.id}
+            />
+          ))
         )}
       </div>
       {/* Add footer */}

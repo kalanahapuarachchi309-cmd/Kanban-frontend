@@ -74,7 +74,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="username" className="block text-sm font-medium text-gray-300 mb-2">
-              Username
+              Username or Email
             </label>
             <input
               id="username"
@@ -83,7 +83,7 @@ export default function LoginPage() {
               onChange={(e) => setUsername(e.target.value)}
               required
               className="w-full px-4 py-2 rounded bg-[#0d0f14] border border-gray-700 text-white focus:outline-none focus:border-blue-500"
-              placeholder="Enter your username"
+              placeholder="Enter your username or email"
             />
           </div>
 

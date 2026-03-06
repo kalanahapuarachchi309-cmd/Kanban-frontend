@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../lib/auth-context";
 import {
   getUsers,
+  getDeveloperUsers,
   createUserByAdmin,
   createProject,
   getProjects,
-  addProjectMember,
+  addProjectMembers,
   getProjectMembers,
   deactivateUser,
   activateUser,
   deleteUser,
   resendPasswordSetupEmail,
+  resetTemporaryPassword,
 } from "../lib/api/services";
 import type { User, Project, ProjectMember } from "../types";
 
@@ -56,6 +58,7 @@ export default function AdminPanel() {
   const [isCreatingProject, setIsCreatingProject] = useState(false);
   const [isAddingMember, setIsAddingMember] = useState(false);
   const [resendingForUserId, setResendingForUserId] = useState<number | null>(null);
+  const [resettingPasswordForUserId, setResettingPasswordForUserId] = useState<number | null>(null);
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
   const [showEmailConfigBadge, setShowEmailConfigBadge] = useState(false);
   const [error, setError] = useState("");
@@ -74,7 +77,7 @@ export default function AdminPanel() {
   });
 
   useEffect(() => {
-    if (user?.role === "ADMIN") {
+    if (user?.role === "ADMIN" || user?.role === "QA_PM") {
       fetchInitialData();
     }
   }, [user]);
@@ -128,7 +131,7 @@ export default function AdminPanel() {
       setIsLoading(true);
       setError("");
       const [usersData, projectsData] = await Promise.all([
-        getUsers(),
+        user?.role === "ADMIN" ? getUsers() : getDeveloperUsers(),
         getProjects(),
       ]);
 
@@ -147,7 +150,7 @@ export default function AdminPanel() {
       if (status === 401) {
         setError("Your session has expired. Please login again.");
       } else if (status === 403) {
-        setError("You do not have permission to view users. Please login as an admin.");
+        setError("You do not have permission to manage project membership.");
       } else if (status === 500) {
         setError(backendMessage || "Server error while loading users. Check backend logs for details.");
       } else {
@@ -196,13 +199,17 @@ export default function AdminPanel() {
         temporaryPassword: Math.random().toString(36).slice(-10) + "A1",
       });
       if (created.emailWarning) {
-        setSuccess(`User ${normalizedUsername} created successfully.`);
+        setSuccess(
+          `User ${normalizedUsername} created successfully. Temporary password: ${created.temporaryPassword || "N/A"}`
+        );
         setError(created.emailWarning);
         if (shouldShowEmailConfigBadge(created.emailWarning)) {
           setShowEmailConfigBadge(true);
         }
       } else {
-        setSuccess(`User ${normalizedUsername} created successfully. Password setup email sent.`);
+        setSuccess(
+          `User ${normalizedUsername} created successfully. Temporary password: ${created.temporaryPassword || "N/A"}`
+        );
       }
       setFormData({
         username: "",
@@ -262,12 +269,9 @@ export default function AdminPanel() {
 
     try {
       setIsAddingMember(true);
-      const results = await Promise.allSettled(
-        memberForm.userIds.map((userId) => addProjectMember(selectedProjectId, userId, memberForm.role))
-      );
-
-      const addedCount = results.filter((result) => result.status === "fulfilled").length;
-      const failedCount = results.length - addedCount;
+      const createdMembers = await addProjectMembers(selectedProjectId, memberForm.userIds, memberForm.role);
+      const addedCount = createdMembers.length;
+      const failedCount = memberForm.userIds.length - addedCount;
 
       if (addedCount > 0 && failedCount === 0) {
         setSuccess(`${addedCount} user(s) added to project successfully.`);
@@ -281,6 +285,11 @@ export default function AdminPanel() {
       const members = await getProjectMembers(selectedProjectId);
       setProjectMembers(members);
       setProjectMembersByProject((prev) => ({ ...prev, [selectedProjectId]: members }));
+
+      // Keep project summary table in sync across all projects after bulk assignment.
+      const refreshedProjects = await getProjects();
+      setProjects(refreshedProjects);
+      await loadProjectMemberships(refreshedProjects);
     } catch (err: any) {
       setError(err.response?.data?.message || "Failed to add user to project");
     } finally {
@@ -329,6 +338,25 @@ export default function AdminPanel() {
     }
   };
 
+  const handleResetTemporaryPassword = async (target: User) => {
+    setError("");
+    setSuccess("");
+
+    try {
+      setResettingPasswordForUserId(target.id);
+      const result = await resetTemporaryPassword(target.id);
+      setSuccess(
+        `Temporary password reset for ${result.username}. New temporary password: ${result.temporaryPassword}`
+      );
+      fetchInitialData();
+    } catch (err: any) {
+      const backendMessage = err?.response?.data?.message;
+      setError(backendMessage || "Failed to reset temporary password");
+    } finally {
+      setResettingPasswordForUserId(null);
+    }
+  };
+
   const handleDeleteUser = async (target: User) => {
     const confirmed = window.confirm(`Delete user ${target.username}? This action cannot be undone.`);
     if (!confirmed) {
@@ -355,9 +383,14 @@ export default function AdminPanel() {
     router.push("/login");
   };
 
-  if (user?.role !== "ADMIN") {
+  if (user?.role !== "ADMIN" && user?.role !== "QA_PM") {
     return null;
   }
+
+  const isAdmin = user?.role === "ADMIN";
+  const assignableRoleOptions = isAdmin
+    ? ROLE_OPTIONS
+    : ROLE_OPTIONS.filter((option) => option.value === "DEVELOPER");
 
   const assignedUserIds = new Set(projectMembers.map((member) => member.user.id));
   const roleUsers = users.filter((u) => u.role === memberForm.role);
@@ -372,8 +405,10 @@ export default function AdminPanel() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-white">Admin Panel</h1>
-            <p className="text-gray-400 text-sm">Manage users and system settings</p>
+            <h1 className="text-2xl font-bold text-white">{isAdmin ? "Admin Panel" : "QA/PM Panel"}</h1>
+            <p className="text-gray-400 text-sm">
+              {isAdmin ? "Manage users and system settings" : "Assign developers to projects"}
+            </p>
             {showEmailConfigBadge && (
               <div className="mt-2 inline-flex items-center rounded border border-yellow-500/60 bg-yellow-500/10 px-2 py-1 text-xs font-medium text-yellow-300">
                 Email not configured (SMTP authentication failed)
@@ -381,12 +416,14 @@ export default function AdminPanel() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowCreateUserForm(!showCreateUserForm)}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-            >
-              {showCreateUserForm ? "Cancel" : "+ Create User"}
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowCreateUserForm(!showCreateUserForm)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              >
+                {showCreateUserForm ? "Cancel" : "+ Create User"}
+              </button>
+            )}
             <button
               onClick={handleLogout}
               className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
@@ -501,7 +538,7 @@ export default function AdminPanel() {
               className="px-3 py-2 rounded bg-[#0d0f14] border border-gray-700 text-white text-sm focus:outline-none focus:border-blue-500"
               required
             >
-              {ROLE_OPTIONS.map((option) => (
+              {assignableRoleOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
@@ -574,12 +611,8 @@ export default function AdminPanel() {
                       ? projectMembers
                       : (projectMembersByProject[project.id] || []);
                     const qaPmMembers = members.filter((member) => member.role === "QA_PM");
-                    const developerMembers = members.filter(
-                      (member) => member.role === "DEVELOPER" || member.user?.role === "DEVELOPER"
-                    );
-                    const clientMembers = members.filter(
-                      (member) => member.role === "CLIENT" || member.user?.role === "CLIENT"
-                    );
+                    const developerMembers = members.filter((member) => member.role === "DEVELOPER");
+                    const clientMembers = members.filter((member) => member.role === "CLIENT");
                     return (
                       <tr key={project.id} className="border-b border-gray-700/40">
                         <td className="p-3 text-sm text-white">{project.name}</td>
@@ -627,7 +660,7 @@ export default function AdminPanel() {
         </div>
 
         {/* Create User Form */}
-        {showCreateUserForm && (
+        {isAdmin && showCreateUserForm && (
           <div className="mb-6 p-6 rounded-lg" style={{ background: "#1a1d25", border: "1px solid #2a2d38" }}>
             <h2 className="text-lg font-semibold text-white mb-4">Create New User</h2>
             <p className="text-sm text-gray-400 mb-4">
@@ -688,6 +721,7 @@ export default function AdminPanel() {
         )}
 
         {/* Users List */}
+        {isAdmin && (
         <div className="rounded-lg" style={{ background: "#1a1d25", border: "1px solid #2a2d38" }}>
           <div className="p-4 border-b border-gray-700">
             <h2 className="text-lg font-semibold text-white">All Users ({users.length})</h2>
@@ -756,6 +790,14 @@ export default function AdminPanel() {
                             {resendingForUserId === u.id ? "Sending..." : "Resend Setup Email"}
                           </button>
 
+                          <button
+                            onClick={() => handleResetTemporaryPassword(u)}
+                            disabled={!u.isActive || u.role === "ADMIN" || resettingPasswordForUserId === u.id}
+                            className="px-2 py-1 rounded text-xs font-medium transition-colors bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {resettingPasswordForUserId === u.id ? "Resetting..." : "Reset Temp Password"}
+                          </button>
+
                           {u.id !== user.id && (
                             <>
                               <button
@@ -790,6 +832,7 @@ export default function AdminPanel() {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );

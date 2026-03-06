@@ -119,11 +119,9 @@ export default function Sidebar({
           <p className="text-gray-600 mb-2 uppercase font-semibold tracking-widest" style={{ fontSize: "10px" }}>Quick Access</p>
           {([
               { label: "All Work Items", icon: CheckSquare, href: "/" },
+              { label: "Bug List", icon: Layers, href: "/bugs?type=BUG" },
               ...(user?.role !== "CLIENT"
-                ? [
-                    { label: "Bug List", icon: Layers, href: "/bugs?type=BUG" },
-                    { label: "Feature List", icon: Layers, href: "/bugs?type=FEATURE" },
-                  ]
+                ? [{ label: "Feature List", icon: Layers, href: "/bugs?type=FEATURE" }]
                 : []),
               { label: "Team Members",   icon: Users, href: "/" },
             ] as { label: string; icon: React.ElementType; href: string }[]).map(({ label, icon: Icon, href }) => (

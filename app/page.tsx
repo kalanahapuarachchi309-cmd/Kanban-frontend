@@ -10,6 +10,8 @@ import { WorkItem, WorkItemStatus, Role, Notification, WorkItemFilter, User, Pro
 import { useAuth } from "./lib/auth-context";
 import {
   getWorkItems,
+  getMyAssignedWorkItems,
+  submitClientReview,
   getUsers,
   getNotifications,
   getProjects,
@@ -35,6 +37,7 @@ export default function Home() {
   const [users, setUsers] = useState<User[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [clientReviewLoadingId, setClientReviewLoadingId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -42,6 +45,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<"Kanban" | "Table" | "List">("Kanban");
   const [filterOpen, setFilterOpen] = useState(false);
   const [filter, setFilter] = useState<WorkItemFilter>({ sortBy: "newest" });
+  const currentRole = (user?.role || "DEVELOPER") as Role;
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -52,6 +56,9 @@ export default function Home() {
 
   const fetchBoardData = useCallback(async () => {
     if (!isAuth || !user) return;
+    const isDeveloper = user.role === "DEVELOPER";
+    const isClient = user.role === "CLIENT";
+    const canLoadUsers = user.role === "ADMIN";
     try {
       setIsLoading(true);
       setError(null);
@@ -62,9 +69,18 @@ export default function Home() {
       };
 
       const [projectsData, usersData, notificationsData] = await Promise.all([
-        getProjects().catch(() => []),
-        getUsers().catch(() => []),
-        getNotifications().catch(() => []),
+        getProjects().catch((err) => {
+          console.error("[Home] Failed to load projects", err);
+          return [];
+        }),
+        canLoadUsers ? getUsers().catch((err) => {
+          console.error("[Home] Failed to load users", err);
+          return [];
+        }) : Promise.resolve([]),
+        getNotifications().catch((err) => {
+          console.error("[Home] Failed to load notifications", err);
+          return [];
+        }),
       ]);
 
       const selectedProjectId =
@@ -77,7 +93,20 @@ export default function Home() {
       }
 
       const workItemsData = selectedProjectId
-        ? await getWorkItems(selectedProjectId, backendFilter).catch(() => [])
+        ? isDeveloper
+          ? await getMyAssignedWorkItems(selectedProjectId).catch((err) => {
+              console.error("[Home] Failed to load developer assigned items", err);
+              return [];
+            })
+          : isClient
+          ? await getWorkItems(selectedProjectId, backendFilter).catch((err) => {
+              console.error("[Home] Failed to load client work items", err);
+              return [];
+            })
+          : await getWorkItems(selectedProjectId, backendFilter).catch((err) => {
+              console.error("[Home] Failed to load work items", err);
+              return [];
+            })
         : [];
 
       setProjects(projectsData);
@@ -98,29 +127,46 @@ export default function Home() {
 
   useEffect(() => {
     if (!isAuth || !user) return;
+    const isDeveloper = user.role === "DEVELOPER";
+    const isClient = user.role === "CLIENT";
 
     const token = localStorage.getItem("jwt_token");
     if (!token) return;
 
     const cleanup = connectNotificationSocket(token, (incoming) => {
       setNotifications((prev) => [incoming, ...prev]);
-      if ((incoming.type === "STATUS_CHANGED" || incoming.type === "ASSIGNMENT_CREATED") && activeProjectId) {
+      const shouldRefreshBoard =
+        incoming.type === "STATUS_CHANGED" ||
+        incoming.type === "ASSIGNMENT_CREATED" ||
+        incoming.type === "COMMENT_ADDED" ||
+        incoming.type === "DUE_NOW";
+
+      if (shouldRefreshBoard && activeProjectId) {
         const backendFilter = {
           ...filter,
           assignedTo: filter.assignedTo === "unassigned" ? "" : filter.assignedTo,
         };
-        getWorkItems(activeProjectId, backendFilter).then((data) => setWorkItems(data));
+        if (isDeveloper) {
+          getMyAssignedWorkItems(activeProjectId).then((data) => setWorkItems(data));
+        } else if (isClient) {
+          getWorkItems(activeProjectId, backendFilter).then((data) => setWorkItems(data));
+        } else {
+          getWorkItems(activeProjectId, backendFilter).then((data) => setWorkItems(data));
+        }
       }
     });
 
     return cleanup;
   }, [isAuth, user, activeProjectId, filter]);
 
-  const currentRole = (user?.role || "DEVELOPER") as Role;
-
   const filtered = useMemo(() => workItems.filter((i) => {
-    // CLIENT can only see their project's published items + their own bugs
-    if (currentRole === "CLIENT") return i.status === "PUBLISHED" || i.createdBy.id === user?.id;
+    // CLIENT can view published items, own bugs, and rejected items sent back to BUG_LIST.
+    if (currentRole === "CLIENT") {
+      const isPublished = i.status === "PUBLISHED";
+      const isOwnBug = i.type === "BUG" && i.createdBy.id === user?.id;
+      const isRejectedBacklog = i.type === "BUG" && i.status === "BUG_LIST" && i.clientReviewStatus === "REJECTED";
+      return isPublished || isOwnBug || isRejectedBacklog;
+    }
     if (filter.assignedTo === "unassigned") return !i.assignedTo;
     return true;
   }), [workItems, filter.assignedTo, currentRole, user]);
@@ -133,6 +179,19 @@ export default function Home() {
   const handleMarkAllNotificationsRead = async () => {
     await markAllNotificationsAsRead().catch(() => null);
     setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+  };
+
+  const handleClientReview = async (id: number, reviewStatus: "ACCEPTED" | "REJECTED") => {
+    if (currentRole !== "CLIENT") return;
+    try {
+      setClientReviewLoadingId(id);
+      const updated = await submitClientReview(id, reviewStatus);
+      setWorkItems((prev) => prev.map((item) => (item.id === id ? updated : item)));
+    } catch (err: any) {
+      setError(err?.message || "Failed to submit client review");
+    } finally {
+      setClientReviewLoadingId(null);
+    }
   };
 
   const hasFilter = Object.values(filter).some((v) => v !== "" && v !== undefined && v !== "newest");
@@ -207,6 +266,8 @@ export default function Home() {
                 accentColor={col.accent}
                 items={filtered.filter((i) => i.status === col.status)}
                 currentRole={currentRole}
+                onClientReview={handleClientReview}
+                clientReviewLoadingId={clientReviewLoadingId}
               />
             ))}
           </div>

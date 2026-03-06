@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { WorkItem, Priority, WorkItemType } from "../types";
+import { WorkItem, Priority, WorkItemType, Role } from "../types";
 import { MessageCircle, Paperclip, Calendar, AlertTriangle, Zap } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -40,7 +40,14 @@ type _OldTask = {
   status: "TODO" | "IN_PROGRESS" | "DONE";
 };
 
-export default function TaskCard({ item }: { item: WorkItem }) {
+type Props = {
+  item: WorkItem;
+  currentRole: Role;
+  onClientReview?: (id: number, reviewStatus: "ACCEPTED" | "REJECTED") => void;
+  clientReviewLoading?: boolean;
+};
+
+export default function TaskCard({ item, currentRole, onClientReview, clientReviewLoading = false }: Props) {
   const [showQaMessage, setShowQaMessage] = useState(false);
   const priority = PRIORITY_CONFIG[item.priority];
   const type = TYPE_CONFIG[item.type];
@@ -55,6 +62,7 @@ export default function TaskCard({ item }: { item: WorkItem }) {
     .filter((line) => !line.startsWith(qaFeedbackPrefix))
     .join("\n")
     .trim();
+  const showClientReviewActions = currentRole === "CLIENT" && item.status === "PUBLISHED";
 
   return (
     <div
@@ -117,6 +125,34 @@ export default function TaskCard({ item }: { item: WorkItem }) {
       {item.clientReviewStatus === "ACCEPTED" && (
         <div className="text-[10px] font-semibold px-2 py-0.5 rounded mb-2 w-fit"
           style={{ background: "rgba(34,197,94,0.15)", color: "#22c55e" }}>Client Accepted</div>
+      )}
+      {showClientReviewActions && (
+        <div className="flex items-center gap-2 mb-2">
+          <button
+            type="button"
+            disabled={clientReviewLoading}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClientReview?.(item.id, "ACCEPTED");
+            }}
+            className="text-[10px] font-semibold px-2 py-1 rounded transition-colors disabled:opacity-60"
+            style={{ background: "rgba(34,197,94,0.18)", color: "#22c55e" }}
+          >
+            {clientReviewLoading ? "Saving..." : "Accept"}
+          </button>
+          <button
+            type="button"
+            disabled={clientReviewLoading}
+            onClick={(e) => {
+              e.stopPropagation();
+              onClientReview?.(item.id, "REJECTED");
+            }}
+            className="text-[10px] font-semibold px-2 py-1 rounded transition-colors disabled:opacity-60"
+            style={{ background: "rgba(239,68,68,0.18)", color: "#ef4444" }}
+          >
+            Reject
+          </button>
+        </div>
       )}
       {/* Footer */}
       <div className="flex items-center justify-between mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>

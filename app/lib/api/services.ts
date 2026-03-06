@@ -59,6 +59,14 @@ export async function addProjectMember(projectId: number, userId: number, role: 
   await apiClient.post(`/api/projects/${projectId}/members`, { userId, role });
 }
 
+export async function addProjectMembers(projectId: number, userIds: number[], role: Role): Promise<ProjectMember[]> {
+  const response = await apiClient.post<ProjectMember[]>(`/api/projects/${projectId}/members/bulk`, {
+    userIds,
+    role,
+  });
+  return response.data;
+}
+
 // ─── Work Items ───────────────────────────────────────────────────────────────
 
 export interface CreateWorkItemRequest {
@@ -66,6 +74,7 @@ export interface CreateWorkItemRequest {
   title: string;
   description?: string;
   priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  assignedTo?: number;
   dueAt?: string;
 }
 
@@ -114,6 +123,17 @@ export async function getWorkItems(projectId: number, filter?: WorkItemFilter): 
   return response.data;
 }
 
+export async function getMyAssignedWorkItems(projectId?: number): Promise<WorkItem[]> {
+  const params = new URLSearchParams();
+  if (typeof projectId === "number") {
+    params.set("projectId", String(projectId));
+  }
+  const query = params.toString();
+  const url = query ? `/api/work-items/my?${query}` : "/api/work-items/my";
+  const response = await apiClient.get<WorkItem[]>(url);
+  return response.data;
+}
+
 export async function getWorkItemById(id: number): Promise<WorkItem> {
   const response = await apiClient.get<WorkItem>(`/api/work-items/${id}`);
   return response.data;
@@ -139,8 +159,12 @@ export async function updateWorkItem(id: number, data: UpdateWorkItemRequest): P
   return response.data;
 }
 
-export async function assignWorkItem(id: number, userId: number): Promise<WorkItem> {
-  const response = await apiClient.patch<WorkItem>(`/api/work-items/${id}/assign`, { userId });
+export async function assignWorkItem(id: number, developerId: number): Promise<WorkItem> {
+  const normalizedDeveloperId = Number(developerId);
+  const response = await apiClient.patch<WorkItem>(`/api/work-items/${id}/assign`, {
+    developerId: normalizedDeveloperId,
+    userId: normalizedDeveloperId,
+  });
   return response.data;
 }
 
@@ -175,6 +199,13 @@ export interface CreateUserRequest {
 export interface CreateUserByAdminResponse {
   user: User;
   emailWarning?: string;
+  temporaryPassword?: string;
+}
+
+export interface AdminResetTemporaryPasswordResponse {
+  userId: number;
+  username: string;
+  temporaryPassword: string;
 }
 
 export async function getUsers(): Promise<User[]> {
@@ -231,6 +262,13 @@ export async function resendPasswordSetupEmail(userId: number): Promise<void> {
   await apiClient.post(`/api/users/${userId}/resend-password-setup`);
 }
 
+export async function resetTemporaryPassword(userId: number): Promise<AdminResetTemporaryPasswordResponse> {
+  const response = await apiClient.post<AdminResetTemporaryPasswordResponse>(
+    `/api/users/${userId}/reset-temporary-password`
+  );
+  return response.data;
+}
+
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 export async function getNotifications(): Promise<Notification[]> {
@@ -263,5 +301,38 @@ export async function getComments(workItemId: number): Promise<Comment[]> {
 
 export async function addComment(workItemId: number, message: string): Promise<Comment> {
   const response = await apiClient.post<Comment>(`/api/work-items/${workItemId}/comments`, { message });
+  return response.data;
+}
+
+// ─── Attachments ─────────────────────────────────────────────────────────────
+
+export interface AttachmentDto {
+  id: number;
+  workItemId: number;
+  url: string;
+  publicId: string;
+  fileType: string;
+  originalName: string;
+  createdAt: string;
+}
+
+export async function uploadWorkItemAttachment(workItemId: number, file: File): Promise<AttachmentDto> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await apiClient.post<AttachmentDto>(
+    `/api/work-items/${workItemId}/attachments/upload`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    }
+  );
+  return response.data;
+}
+
+export async function getWorkItemAttachments(workItemId: number): Promise<AttachmentDto[]> {
+  const response = await apiClient.get<AttachmentDto[]>(`/api/work-items/${workItemId}/attachments`);
   return response.data;
 }
