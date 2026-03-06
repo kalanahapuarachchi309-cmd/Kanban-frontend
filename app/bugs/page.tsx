@@ -339,18 +339,29 @@ export default function BugsPage() {
   };
 
   const moveBugStatus = async (item: WorkItem, toStatus: "IN_PROGRESS" | "QA_FIX") => {
-    if (!isDeveloperRole || !user || item.assignedTo?.id !== user.id) {
-      setError("Only the assigned developer can update this bug status.");
-      return;
+    if (toStatus === "IN_PROGRESS") {
+      const canStartProgress =
+        canManage || (isDeveloperRole && !!user && item.assignedTo?.id === user.id);
+
+      if (!canStartProgress) {
+        setError("Only QA/PM, ADMIN, or the assigned developer can start progress.");
+        return;
+      }
+      if (item.status !== "BUG_LIST") {
+        setError("Start Progress is available only for BUG_LIST items.");
+        return;
+      }
     }
 
-    if (toStatus === "IN_PROGRESS" && item.status !== "BUG_LIST") {
-      setError("Start Progress is available only for BUG_LIST items.");
-      return;
-    }
-    if (toStatus === "QA_FIX" && item.status !== "IN_PROGRESS") {
+    if (toStatus === "QA_FIX") {
+      if (!isDeveloperRole || !user || item.assignedTo?.id !== user.id) {
+        setError("Only the assigned developer can move item to QA_FIX.");
+        return;
+      }
+      if (item.status !== "IN_PROGRESS") {
       setError("QA Fix is available only for IN_PROGRESS items.");
       return;
+      }
     }
 
     try {
@@ -408,12 +419,12 @@ export default function BugsPage() {
       setError("Select a bug first.");
       return;
     }
-    if (selectedItem.status !== "QA_FIX") {
-      setError("Send Back to In Progress is allowed only for QA_FIX items.");
+    if (selectedItem.status !== "QA_FIX" && selectedItem.status !== "BUG_LIST") {
+      setError("Progress action is allowed only for BUG_LIST or QA_FIX items.");
       return;
     }
     if (!qaFeedback.trim()) {
-      setError("Please add QA description before sending back.");
+      setError("Please add description before moving to progress.");
       return;
     }
 
@@ -424,22 +435,33 @@ export default function BugsPage() {
 
       const feedbackText = qaFeedback.trim();
       const feedbackPrefix = "[QA/PM Feedback] ";
+      const progressNotePrefix = "[QA/PM Progress Note] ";
+      const notePrefix = selectedItem.status === "BUG_LIST" ? progressNotePrefix : feedbackPrefix;
       const cleanedDescription = (selectedItem.description || "")
         .split("\n")
-        .filter((line) => !line.startsWith(feedbackPrefix))
+        .filter((line) => !line.startsWith(feedbackPrefix) && !line.startsWith(progressNotePrefix))
         .join("\n")
         .trim();
       const nextDescription = cleanedDescription
-        ? `${feedbackPrefix}${feedbackText}\n${cleanedDescription}`
-        : `${feedbackPrefix}${feedbackText}`;
+        ? `${notePrefix}${feedbackText}\n${cleanedDescription}`
+        : `${notePrefix}${feedbackText}`;
 
       await updateWorkItem(selectedItem.id, { description: nextDescription });
-      await addComment(selectedItem.id, `QA feedback: ${feedbackText}`);
+      await addComment(
+        selectedItem.id,
+        selectedItem.status === "BUG_LIST"
+          ? `QA/PM moved to progress: ${feedbackText}`
+          : `QA feedback: ${feedbackText}`
+      );
       const updated = await changeWorkItemStatus(selectedItem.id, "IN_PROGRESS");
 
       setBugs((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
       setQaFeedback("");
-      setSuccess("Bug sent back to In Progress with QA description.");
+      setSuccess(
+        selectedItem.status === "BUG_LIST"
+          ? "Bug moved to In Progress with QA/PM description."
+          : "Bug sent back to In Progress with QA description."
+      );
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
@@ -513,6 +535,10 @@ export default function BugsPage() {
 
   const onApproveAndDone = async (item: WorkItem) => {
     if (item.status === "DONE" || item.status === "PUBLISHED") return;
+    if (item.status !== "IN_PROGRESS" && item.status !== "QA_FIX") {
+      setError("Approve & Done is only allowed for IN_PROGRESS or QA_FIX items.");
+      return;
+    }
 
     try {
       setMarkingDoneItemId(item.id);
@@ -925,18 +951,26 @@ export default function BugsPage() {
             <textarea
               value={qaFeedback}
               onChange={(e) => setQaFeedback(e.target.value)}
-              placeholder="If developer fix is not correct, write QA description here..."
+              placeholder={
+                selectedItem.status === "BUG_LIST"
+                  ? "Write QA/PM note before sending to progress..."
+                  : "If developer fix is not correct, write QA description here..."
+              }
               className="w-full px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10 mb-3"
               rows={3}
             />
             <button
               type="button"
               onClick={sendBackToProgress}
-              disabled={submitting || !qaFeedback.trim() || selectedItem.status !== "QA_FIX"}
+              disabled={
+                submitting ||
+                !qaFeedback.trim() ||
+                (selectedItem.status !== "QA_FIX" && selectedItem.status !== "BUG_LIST")
+              }
               className="px-4 py-2 rounded text-white disabled:opacity-50"
               style={{ background: "#f97316" }}
             >
-              Send Back to In Progress
+              {selectedItem.status === "BUG_LIST" ? "Send To Progress" : "Send Back to In Progress"}
             </button>
           </div>
         )}
@@ -1088,11 +1122,22 @@ export default function BugsPage() {
                                   e.stopPropagation();
                                   onApproveAndDone(bug);
                                 }}
-                                disabled={markingDoneItemId === bug.id || bug.status === "DONE" || bug.status === "PUBLISHED"}
+                                disabled={
+                                  markingDoneItemId === bug.id ||
+                                  bug.status === "DONE" ||
+                                  bug.status === "PUBLISHED" ||
+                                  (bug.status !== "IN_PROGRESS" && bug.status !== "QA_FIX")
+                                }
                                 className="px-3 py-1 rounded text-xs text-white disabled:opacity-60"
                                 style={{ background: "#16a34a" }}
                               >
-                                {markingDoneItemId === bug.id ? "Moving..." : bug.status === "DONE" || bug.status === "PUBLISHED" ? "Done" : "Approve & Done"}
+                                {markingDoneItemId === bug.id
+                                  ? "Moving..."
+                                  : bug.status === "DONE" || bug.status === "PUBLISHED"
+                                  ? "Done"
+                                  : bug.status !== "IN_PROGRESS" && bug.status !== "QA_FIX"
+                                  ? "Need Progress"
+                                  : "Approve & Done"}
                               </button>
                               <button
                                 type="button"
