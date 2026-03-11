@@ -1,3 +1,4 @@
+import axios from "axios";
 import { apiClient } from "./config";
 import type {
   WorkItem,
@@ -11,21 +12,34 @@ import type {
   Role,
 } from "../../types";
 
-function normalizeUser(raw: any): User {
+type RawUser = Partial<User> & {
+  active?: boolean;
+};
+
+function normalizeUser(raw: unknown): User {
+  const user = typeof raw === "object" && raw !== null ? (raw as RawUser) : {};
   return {
-    ...raw,
+    ...user,
     isActive:
-      typeof raw?.isActive === "boolean"
-        ? raw.isActive
-        : typeof raw?.active === "boolean"
-        ? raw.active
+      typeof user.isActive === "boolean"
+        ? user.isActive
+        : typeof user.active === "boolean"
+        ? user.active
         : true,
-  };
+  } as User;
 }
 
-function normalizeUsers(raw: any): User[] {
+function normalizeUsers(raw: unknown): User[] {
   if (!Array.isArray(raw)) return [];
   return raw.map((item) => normalizeUser(item));
+}
+
+function isNotificationAccessError(error: unknown): boolean {
+  return axios.isAxiosError(error) && (error.response?.status === 403 || error.response?.status === 404);
+}
+
+function isOptionalResourceError(error: unknown): boolean {
+  return axios.isAxiosError(error) && (error.response?.status === 403 || error.response?.status === 404);
 }
 
 // ─── Projects ─────────────────────────────────────────────────────────────────
@@ -36,13 +50,20 @@ export interface CreateProjectRequest {
 }
 
 export async function getProjects(): Promise<Project[]> {
-  const response = await apiClient.get<Project[]>(`/api/projects?_ts=${Date.now()}`, {
-    headers: {
-      "Cache-Control": "no-cache",
-      Pragma: "no-cache",
-    },
-  });
-  return response.data;
+  try {
+    const response = await apiClient.get<Project[]>(`/api/projects?_ts=${Date.now()}`, {
+      headers: {
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
+    });
+    return response.data;
+  } catch (error) {
+    if (isOptionalResourceError(error)) {
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function createProject(data: CreateProjectRequest): Promise<Project> {
@@ -272,16 +293,35 @@ export async function resetTemporaryPassword(userId: number): Promise<AdminReset
 // ─── Notifications ────────────────────────────────────────────────────────────
 
 export async function getNotifications(): Promise<Notification[]> {
-  const response = await apiClient.get<Notification[]>("/api/notifications");
-  return response.data;
+  try {
+    const response = await apiClient.get<Notification[]>("/api/notifications");
+    return response.data;
+  } catch (error) {
+    if (isNotificationAccessError(error)) {
+      return [];
+    }
+    throw error;
+  }
 }
 
 export async function markNotificationAsRead(id: number): Promise<void> {
-  await apiClient.patch(`/api/notifications/${id}/read`);
+  try {
+    await apiClient.patch(`/api/notifications/${id}/read`);
+  } catch (error) {
+    if (!isNotificationAccessError(error)) {
+      throw error;
+    }
+  }
 }
 
 export async function markAllNotificationsAsRead(): Promise<void> {
-  await apiClient.patch("/api/notifications/read-all");
+  try {
+    await apiClient.patch("/api/notifications/read-all");
+  } catch (error) {
+    if (!isNotificationAccessError(error)) {
+      throw error;
+    }
+  }
 }
 
 // ─── Comments ─────────────────────────────────────────────────────────────────

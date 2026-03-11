@@ -10,6 +10,45 @@ import type { AttachmentDto, Comment as ProcessComment } from "../lib/api/servic
 
 const PRIORITY_OPTIONS: Priority[] = ["LOW", "MEDIUM", "HIGH", "CRITICAL"];
 
+function getPriorityBadge(priority: Priority) {
+  const configs = {
+    CRITICAL: { emoji: "🔴", bg: "#7f1d1d", border: "#ef4444", text: "#fca5a5" },
+    HIGH: { emoji: "🟠", bg: "#7c2d12", border: "#f97316", text: "#fdba74" },
+    MEDIUM: { emoji: "🟡", bg: "#713f12", border: "#eab308", text: "#fde047" },
+    LOW: { emoji: "🟢", bg: "#14532d", border: "#22c55e", text: "#86efac" },
+  };
+  const config = configs[priority];
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold"
+      style={{ background: config.bg, border: `1px solid ${config.border}`, color: config.text }}
+    >
+      <span>{config.emoji}</span>
+      <span>{priority}</span>
+    </span>
+  );
+}
+
+function getStatusBadge(status: string) {
+  const configs: Record<string, { emoji: string; bg: string; border: string; text: string; label: string }> = {
+    BUG_LIST: { emoji: "📋", bg: "#1e293b", border: "#475569", text: "#cbd5e1", label: "Bug List" },
+    IN_PROGRESS: { emoji: "⚙️", bg: "#7c2d12", border: "#ea580c", text: "#fdba74", label: "In Progress" },
+    QA_FIX: { emoji: "🔍", bg: "#164e63", border: "#0891b2", text: "#67e8f9", label: "QA Fix" },
+    DONE: { emoji: "✅", bg: "#14532d", border: "#16a34a", text: "#86efac", label: "Done" },
+    PUBLISHED: { emoji: "🚀", bg: "#581c87", border: "#a855f7", text: "#e9d5ff", label: "Published" },
+  };
+  const config = configs[status] || configs.BUG_LIST;
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold whitespace-nowrap"
+      style={{ background: config.bg, border: `1px solid ${config.border}`, color: config.text }}
+    >
+      <span>{config.emoji}</span>
+      <span>{config.label}</span>
+    </span>
+  );
+}
+
 function toLocalDateTimeInput(value?: string) {
   if (!value) return "";
   const date = new Date(value);
@@ -714,7 +753,7 @@ export default function BugsPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ background: "#0d0f14" }}>
+    <div className="flex h-screen overflow-hidden" style={{ background: "linear-gradient(135deg, #0d0f14 0%, #1a1d2e 50%, #0d0f14 100%)" }}>
       <Sidebar
         activeProjectId={activeProjectId}
         onSelectProject={setActiveProjectId}
@@ -724,91 +763,115 @@ export default function BugsPage() {
       />
 
       <div className="flex-1 overflow-auto p-6">
-        <h1 className="text-2xl font-semibold text-white mb-4">Bug List</h1>
-
-        {error && <div className="mb-4 text-sm text-red-300">{error}</div>}
-        {success && <div className="mb-4 text-sm text-green-300">{success}</div>}
-
-        <div className="mb-4 max-w-xs">
-          <label className="text-xs text-gray-400 block mb-1">Project</label>
-          <select
-            value={activeProjectId ?? ""}
-            onChange={(e) => setActiveProjectId(e.target.value ? Number(e.target.value) : null)}
-            className="w-full px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-          >
-            <option value="" disabled>
-              {projects.length === 0 ? "No projects available" : "Select project"}
-            </option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
-          {projects.length === 0 && (
-            <p className="mt-2 text-xs text-amber-300">No projects found. Ask admin to add a project or add you as a project member.</p>
-          )}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-white mb-2">🐛 Bug & Feature Management</h1>
+          <p className="text-gray-400 text-sm">Track, assign, and manage your project work items</p>
         </div>
 
-        <div className="mb-4 max-w-xs">
-          <label className="text-xs text-gray-400 block mb-1">Filter</label>
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value as "ALL" | WorkItemType)}
-            disabled={isClientRole}
-            className="w-full px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-          >
-            <option value="BUG">Bugs</option>
-            <option value="FEATURE">Features</option>
-            <option value="ALL">All</option>
-          </select>
-        </div>
-
-        {!isClientRole && (
-          <div className="mb-4 max-w-xs">
-            <label className="text-xs text-gray-400 block mb-1">Assigned To</label>
-            <select
-              value={assignedToFilter}
-              onChange={(e) => {
-                if (isDeveloperRole) return;
-                const value = e.target.value;
-                if (value === "ALL" || value === "UNASSIGNED") {
-                  setAssignedToFilter(value);
-                  return;
-                }
-                setAssignedToFilter(Number(value));
-              }}
-              disabled={isDeveloperRole}
-              className="w-full px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-            >
-              {isDeveloperRole ? (
-                <option value={user?.id ?? ""}>My assigned bugs</option>
-              ) : (
-                <>
-                  <option value="ALL">All developers</option>
-                  <option value="UNASSIGNED">Unassigned</option>
-                  {developers.map((developer) => (
-                    <option key={developer.id} value={developer.id}>
-                      {developer.username}
-                    </option>
-                  ))}
-                </>
-              )}
-            </select>
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-red-900/20 border border-red-500/30 text-red-300 text-sm flex items-center gap-2">
+            <span className="text-lg">⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+        {success && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-green-900/20 border border-green-500/30 text-green-300 text-sm flex items-center gap-2">
+            <span className="text-lg">✓</span>
+            <span>{success}</span>
           </div>
         )}
 
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          <div className="rounded-xl p-4 backdrop-blur-xl shadow-2xl" style={{ background: "rgba(19, 22, 30, 0.7)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "0 8px 32px 0 rgba(139, 92, 246, 0.15)" }}>
+            <label className="text-xs font-semibold text-gray-300 block mb-2 uppercase tracking-wide">📁 Project</label>
+            <select
+              value={activeProjectId ?? ""}
+              onChange={(e) => setActiveProjectId(e.target.value ? Number(e.target.value) : null)}
+              className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all"
+              style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+            >
+              <option value="" disabled>
+                {projects.length === 0 ? "No projects available" : "Select project"}
+              </option>
+              {projects.map((project) => (
+                <option key={project.id} value={project.id}>
+                  {project.name}
+                </option>
+              ))}
+            </select>
+            {projects.length === 0 && (
+              <p className="mt-2 text-xs text-amber-400 bg-amber-900/10 px-2 py-1 rounded">💡 No projects found. Contact admin.</p>
+            )}
+          </div>
+
+          <div className="rounded-xl p-4 backdrop-blur-xl shadow-2xl" style={{ background: "rgba(19, 22, 30, 0.7)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "0 8px 32px 0 rgba(139, 92, 246, 0.15)" }}>
+            <label className="text-xs font-semibold text-gray-300 block mb-2 uppercase tracking-wide">🔍 Type Filter</label>
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value as "ALL" | WorkItemType)}
+              disabled={isClientRole}
+              className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all disabled:opacity-50"
+              style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+            >
+              <option value="BUG">🐛 Bugs</option>
+              <option value="FEATURE">✨ Features</option>
+              <option value="ALL">📋 All Items</option>
+            </select>
+          </div>
+
+          {!isClientRole && (
+            <div className="rounded-xl p-4 backdrop-blur-xl shadow-2xl" style={{ background: "rgba(19, 22, 30, 0.7)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "0 8px 32px 0 rgba(139, 92, 246, 0.15)" }}>
+              <label className="text-xs font-semibold text-gray-300 block mb-2 uppercase tracking-wide">👤 Assigned To</label>
+              <select
+                value={assignedToFilter}
+                onChange={(e) => {
+                  if (isDeveloperRole) return;
+                  const value = e.target.value;
+                  if (value === "ALL" || value === "UNASSIGNED") {
+                    setAssignedToFilter(value);
+                    return;
+                  }
+                  setAssignedToFilter(Number(value));
+                }}
+                disabled={isDeveloperRole}
+                className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all disabled:opacity-50"
+                style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+              >
+                {isDeveloperRole ? (
+                  <option value={user?.id ?? ""}>My assigned items</option>
+                ) : (
+                  <>
+                    <option value="ALL">All developers</option>
+                    <option value="UNASSIGNED">⚪ Unassigned</option>
+                    {developers.map((developer) => (
+                      <option key={developer.id} value={developer.id}>
+                        {developer.username}
+                      </option>
+                    ))}
+                  </>
+                )}
+              </select>
+            </div>
+          )}
+        </div>
+
         {canManage && (
-          <div className="mb-4 flex items-center gap-3">
-            <span className="text-xs text-gray-300">DONE items in selected project: {doneItems.length}</span>
+          <div className="mb-6 p-4 rounded-xl backdrop-blur-xl flex items-center justify-between shadow-2xl" style={{ background: "rgba(124, 58, 237, 0.15)", border: "1px solid rgba(167, 139, 250, 0.3)", boxShadow: "0 8px 32px 0 rgba(124, 58, 237, 0.2)" }}>
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">📦</span>
+              <div>
+                <div className="text-sm font-semibold text-white">Ready to Publish</div>
+                <div className="text-xs text-gray-400">{doneItems.length} DONE items in selected project</div>
+              </div>
+            </div>
             <button
               type="button"
               onClick={onPublishAllDone}
               disabled={publishingAllDone || doneItems.length === 0}
-              className="px-3 py-2 rounded text-xs text-white disabled:opacity-60"
+              className="px-4 py-2.5 rounded-lg text-sm font-medium text-white disabled:opacity-50 hover:opacity-90 transition-all transform hover:scale-105"
               style={{ background: "#7c3aed" }}
             >
-              {publishingAllDone ? "Publishing..." : "Publish All DONE"}
+              {publishingAllDone ? "Publishing..." : "🚀 Publish All DONE"}
             </button>
           </div>
         )}
@@ -816,182 +879,253 @@ export default function BugsPage() {
         {canCreateBug && (
           <form
             onSubmit={onCreateBug}
-            className="mb-6 p-4 rounded-xl"
-            style={{ background: "#13161e", border: "1px solid rgba(255,255,255,0.08)" }}
+            className="mb-6 p-6 rounded-2xl backdrop-blur-xl shadow-2xl"
+            style={{ background: "rgba(26, 29, 41, 0.6)", border: "1px solid rgba(139, 92, 246, 0.3)", boxShadow: "0 8px 32px 0 rgba(139, 92, 246, 0.2)" }}
           >
-            {isClientRole && (
-              <div className="mb-3 text-sm text-cyan-300">
-                Client Add Bug Section: Report a bug for this project.
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">{isClientRole ? "📝" : "➕"}</span>
+              <div>
+                <h3 className="text-lg font-bold text-white">
+                  {isClientRole ? "Report New Bug" : (itemType === "FEATURE" ? "Create New Feature" : "Create New Bug")}
+                </h3>
+                {isClientRole && (
+                  <p className="text-xs text-cyan-400 mt-0.5">Report issues you've discovered in this project</p>
+                )}
               </div>
-            )}
-            <div className="grid gap-3">
+            </div>
+            <div className="grid md:grid-cols-2 gap-4">
               {canManage ? (
-                <select
-                  value={itemType}
-                  onChange={(e) => setItemType(e.target.value as WorkItemType)}
-                  className="px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-                >
-                  <option value="BUG">Bug</option>
-                  <option value="FEATURE">Feature</option>
-                </select>
+                <div className="md:col-span-2">
+                  <label className="text-xs font-semibold text-gray-300 block mb-1.5">Type</label>
+                  <select
+                    value={itemType}
+                    onChange={(e) => setItemType(e.target.value as WorkItemType)}
+                    className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all"
+                    style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                  >
+                    <option value="BUG">🐛 Bug</option>
+                    <option value="FEATURE">✨ Feature</option>
+                  </select>
+                </div>
               ) : (
-                <div className="px-3 py-2 rounded bg-black/20 text-white border border-white/10 text-sm">
-                  Type: BUG
+                <div className="md:col-span-2 px-4 py-2.5 rounded-lg bg-indigo-900/20 text-white border border-indigo-500/30 text-sm flex items-center gap-2">
+                  <span>🐛</span>
+                  <span className="font-medium">Type: BUG</span>
                 </div>
               )}
-              <input
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder={itemType === "FEATURE" ? "Feature title" : "Bug title"}
-                className="px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-              />
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description"
-                className="px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-                rows={3}
-              />
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value as Priority)}
-                className="px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-              >
-                {PRIORITY_OPTIONS.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-              <input
-                type="datetime-local"
-                value={dueAt}
-                onChange={(e) => setDueAt(e.target.value)}
-                className="px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-              />
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={durationHours}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (!value) {
-                    setDurationHours("");
-                    return;
-                  }
-                  const hours = Number(value);
-                  if (Number.isNaN(hours) || hours <= 0) {
-                    setDurationHours("");
-                    return;
-                  }
-                  setDurationHours(hours);
-                  const calculated = new Date(Date.now() + hours * 60 * 60 * 1000);
-                  setDueAt(toLocalDateTimeInput(calculated.toISOString()));
-                }}
-                placeholder="Duration (hours)"
-                className="px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-              />
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-4 py-2 rounded text-white"
-                style={{ background: "#6366f1", opacity: submitting ? 0.7 : 1 }}
-              >
-                {submitting ? "Adding..." : canManage ? (itemType === "FEATURE" ? "Add Feature" : "Add Bug") : "Report Bug"}
-              </button>
+              <div className="md:col-span-2">
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">Title *</label>
+                <input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder={itemType === "FEATURE" ? "Enter feature title..." : "Enter bug title..."}
+                  className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all placeholder:text-gray-500"
+                  style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">Description</label>
+                <textarea
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="Provide detailed description..."
+                  className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all placeholder:text-gray-500 resize-none"
+                  style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">Priority</label>
+                <select
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as Priority)}
+                  className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all"
+                  style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                >
+                  {PRIORITY_OPTIONS.map((p) => (
+                    <option key={p} value={p}>
+                      {p === "CRITICAL" ? "🔴 CRITICAL" : p === "HIGH" ? "🟠 HIGH" : p === "MEDIUM" ? "🟡 MEDIUM" : "🟢 LOW"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">Due Date & Time</label>
+                <input
+                  type="datetime-local"
+                  value={dueAt}
+                  onChange={(e) => setDueAt(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all"
+                  style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-xs font-semibold text-gray-300 block mb-1.5">⏱️ Calculate Due Date (hours from now)</label>
+                <input
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={durationHours}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (!value) {
+                      setDurationHours("");
+                      return;
+                    }
+                    const hours = Number(value);
+                    if (Number.isNaN(hours) || hours <= 0) {
+                      setDurationHours("");
+                      return;
+                    }
+                    setDurationHours(hours);
+                    const calculated = new Date(Date.now() + hours * 60 * 60 * 1000);
+                    setDueAt(toLocalDateTimeInput(calculated.toISOString()));
+                  }}
+                  placeholder="e.g., 24 hours"
+                  className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all placeholder:text-gray-500"
+                  style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full px-4 py-3 rounded-lg text-white font-semibold disabled:opacity-50 hover:opacity-90 transition-all transform hover:scale-[1.02]"
+                  style={{ background: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)" }}
+                >
+                  {submitting ? "⏳ Adding..." : canManage ? (itemType === "FEATURE" ? "✨ Add Feature" : "🐛 Add Bug") : "📤 Report Bug"}
+                </button>
+              </div>
             </div>
           </form>
         )}
 
         {canReassign && selectedItem && (
           <div
-            className="mb-6 p-4 rounded-xl"
-            style={{ background: "#13161e", border: "1px solid rgba(255,255,255,0.08)" }}
+            className="mb-6 p-6 rounded-2xl backdrop-blur-xl shadow-2xl"
+            style={{ background: "rgba(30, 41, 58, 0.6)", border: "1px solid rgba(139, 92, 246, 0.3)", boxShadow: "0 8px 32px 0 rgba(59, 130, 246, 0.2)" }}
           >
-            <div className="text-sm text-gray-200 mb-2">
-              Assign / Reassign Developer
-            </div>
-            <div className="flex gap-3 mb-4">
-              <select
-                value={selectedDeveloperId}
-                onChange={(e) => setSelectedDeveloperId(e.target.value ? Number(e.target.value) : "")}
-                className="flex-1 px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10"
-              >
-                <option value="">Select developer</option>
-                {developers.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.username}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                onClick={assignToDeveloper}
-                disabled={submitting || !selectedDeveloperId}
-                className="px-4 py-2 rounded text-white disabled:opacity-50"
-                style={{ background: "#2563eb" }}
-              >
-                Assign
-              </button>
-              <button
-                type="button"
-                onClick={reassignDeveloper}
-                disabled={submitting || !selectedDeveloperId}
-                className="px-4 py-2 rounded text-white disabled:opacity-50"
-                style={{ background: "#3b82f6" }}
-              >
-                Reassign
-              </button>
+            <div className="flex items-center gap-3 mb-5">
+              <span className="text-3xl">👨‍💼</span>
+              <div>
+                <h3 className="text-lg font-bold text-white">QA/PM Management</h3>
+                <p className="text-xs text-gray-400">
+                  Selected: {selectedItem.type === "FEATURE" ? `✨ FEATURE-${selectedItem.id}` : `🐛 BUG-${selectedItem.id}`} 
+                  <span className="ml-2 px-2 py-0.5 rounded text-xs" style={{
+                    background: selectedItem.status === "DONE" ? "#16a34a20" : selectedItem.status === "IN_PROGRESS" ? "#ea580c20" : "#3b82f620",
+                    color: selectedItem.status === "DONE" ? "#86efac" : selectedItem.status === "IN_PROGRESS" ? "#fdba74" : "#93c5fd",
+                    border: `1px solid ${selectedItem.status === "DONE" ? "#16a34a40" : selectedItem.status === "IN_PROGRESS" ? "#ea580c40" : "#3b82f640"}`
+                  }}>
+                    {selectedItem.status}
+                  </span>
+                </p>
+              </div>
             </div>
 
-            <div className="text-sm text-gray-200 mb-2">
-              QA Check: {selectedItem.type === "FEATURE" ? `FEATURE-${selectedItem.id}` : `BUG-${selectedItem.id}`} ({selectedItem.status})
+            <div className="mb-5">
+              <label className="text-xs font-semibold text-gray-300 block mb-2">👤 Assign / Reassign Developer</label>
+              <div className="flex gap-3">
+                <select
+                  value={selectedDeveloperId}
+                  onChange={(e) => setSelectedDeveloperId(e.target.value ? Number(e.target.value) : "")}
+                  className="flex-1 px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all"
+                  style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                >
+                  <option value="">Select developer</option>
+                  {developers.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.username}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  onClick={assignToDeveloper}
+                  disabled={submitting || !selectedDeveloperId}
+                  className="px-5 py-2.5 rounded-lg text-white font-medium disabled:opacity-50 hover:opacity-90 transition-all"
+                  style={{ background: "#2563eb" }}
+                >
+                  ✓ Assign
+                </button>
+                <button
+                  type="button"
+                  onClick={reassignDeveloper}
+                  disabled={submitting || !selectedDeveloperId}
+                  className="px-5 py-2.5 rounded-lg text-white font-medium disabled:opacity-50 hover:opacity-90 transition-all"
+                  style={{ background: "#3b82f6" }}
+                >
+                  ↻ Reassign
+                </button>
+              </div>
             </div>
-            <textarea
-              value={qaFeedback}
-              onChange={(e) => setQaFeedback(e.target.value)}
-              placeholder={
-                selectedItem.status === "BUG_LIST"
-                  ? "Write QA/PM note before sending to progress..."
-                  : "If developer fix is not correct, write QA description here..."
-              }
-              className="w-full px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10 mb-3"
-              rows={3}
-            />
-            <button
-              type="button"
-              onClick={sendBackToProgress}
-              disabled={
-                submitting ||
-                !qaFeedback.trim() ||
-                (selectedItem.status !== "QA_FIX" && selectedItem.status !== "BUG_LIST")
-              }
-              className="px-4 py-2 rounded text-white disabled:opacity-50"
-              style={{ background: "#f97316" }}
-            >
-              {selectedItem.status === "BUG_LIST" ? "Send To Progress" : "Send Back to In Progress"}
-            </button>
+
+            <div>
+              <label className="text-xs font-semibold text-gray-300 block mb-2">📝 QA Feedback / Progress Note</label>
+              <textarea
+                value={qaFeedback}
+                onChange={(e) => setQaFeedback(e.target.value)}
+                placeholder={
+                  selectedItem.status === "BUG_LIST"
+                    ? "Write QA/PM note before sending to progress..."
+                    : "If developer fix is not correct, write QA description here..."
+                }
+                className="w-full px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all placeholder:text-gray-500 resize-none mb-3"
+                style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
+                rows={3}
+              />
+              <button
+                type="button"
+                onClick={sendBackToProgress}
+                disabled={
+                  submitting ||
+                  !qaFeedback.trim() ||
+                  (selectedItem.status !== "QA_FIX" && selectedItem.status !== "BUG_LIST")
+                }
+                className="w-full px-4 py-3 rounded-lg text-white font-semibold disabled:opacity-50 hover:opacity-90 transition-all"
+                style={{ background: "#f97316" }}
+              >
+                {selectedItem.status === "BUG_LIST" ? "▶️ Send To Progress" : "↩️ Send Back to In Progress"}
+              </button>
+            </div>
           </div>
         )}
 
         {isDeveloperRole && selectedItem && (
           <div
-            className="mb-6 p-4 rounded-xl"
-            style={{ background: "#13161e", border: "1px solid rgba(255,255,255,0.08)" }}
+            className="mb-6 p-6 rounded-2xl backdrop-blur-xl shadow-2xl"
+            style={{ background: "rgba(22, 78, 99, 0.6)", border: "1px solid rgba(34, 211, 238, 0.3)", boxShadow: "0 8px 32px 0 rgba(6, 182, 212, 0.2)" }}
           >
-            <div className="text-sm text-gray-200 mb-2">
-              Process List: {selectedItem.type === "FEATURE" ? `FEATURE-${selectedItem.id}` : `BUG-${selectedItem.id}`} ({selectedItem.status})
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">⚙️</span>
+              <div>
+                <h3 className="text-lg font-bold text-white">Developer Process Steps</h3>
+                <p className="text-xs text-gray-400">
+                  {selectedItem.type === "FEATURE" ? `✨ FEATURE-${selectedItem.id}` : `🐛 BUG-${selectedItem.id}`} - {selectedItem.title}
+                  <span className="ml-2 px-2 py-0.5 rounded text-xs" style={{
+                    background: selectedItem.status === "IN_PROGRESS" ? "#ea580c20" : "#3b82f620",
+                    color: selectedItem.status === "IN_PROGRESS" ? "#fdba74" : "#93c5fd",
+                    border: `1px solid ${selectedItem.status === "IN_PROGRESS" ? "#ea580c40" : "#3b82f640"}`
+                  }}>
+                    {selectedItem.status}
+                  </span>
+                </p>
+              </div>
             </div>
 
             {processEntries.length === 0 ? (
-              <div className="text-xs text-gray-400 mb-3">No process steps added yet.</div>
+              <div className="px-4 py-3 bg-black/20 rounded-lg border border-dashed border-white/10 text-center mb-4">
+                <span className="text-gray-500 text-sm">📋 No process steps added yet</span>
+              </div>
             ) : (
-              <div className="mb-3 max-h-40 overflow-auto rounded border border-white/10 bg-black/20 p-2">
-                {processEntries.map((entry) => (
-                  <div key={entry.id} className="text-xs text-gray-200 py-1 border-b border-white/5 last:border-b-0">
-                    <span className="text-indigo-300 font-medium">{entry.user?.username}:</span>{" "}
-                    {entry.message.replace("[PROCESS] ", "")}
+              <div className="mb-4 max-h-60 overflow-auto rounded-lg border border-white/10 bg-black/20 p-3 scrollbar-cyan">
+                {processEntries.map((entry, index) => (
+                  <div key={entry.id} className="text-sm text-gray-200 py-2 px-3 rounded-lg mb-2 last:mb-0 bg-cyan-900/10 border border-cyan-500/20">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="w-6 h-6 rounded-full bg-cyan-600 text-white text-xs flex items-center justify-center font-bold">{index + 1}</span>
+                      <span className="text-cyan-300 font-semibold">{entry.user?.username}</span>
+                      <span className="text-xs text-gray-500 ml-auto">{new Date(entry.createdAt).toLocaleTimeString()}</span>
+                    </div>
+                    <p className="text-gray-300 pl-8">{entry.message.replace("[PROCESS] ", "")}</p>
                   </div>
                 ))}
               </div>
@@ -1001,273 +1135,348 @@ export default function BugsPage() {
               <input
                 value={processStepInput}
                 onChange={(e) => setProcessStepInput(e.target.value)}
-                placeholder="Add process step (only IN_PROGRESS)"
+                placeholder="Add process step (only available during IN_PROGRESS)"
                 disabled={!isDeveloperAssignedSelected || selectedItem.status !== "IN_PROGRESS" || processSubmitting}
-                className="flex-1 px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10 disabled:opacity-60"
+                className="flex-1 px-3 py-2.5 rounded-xl backdrop-blur-sm text-white outline-none transition-all disabled:opacity-50 placeholder:text-gray-500"
+                style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 8px rgba(0, 0, 0, 0.2)" }}
               />
               <button
                 type="button"
                 onClick={addProcessStep}
                 disabled={!isDeveloperAssignedSelected || selectedItem.status !== "IN_PROGRESS" || processSubmitting || !processStepInput.trim()}
-                className="px-4 py-2 rounded text-white disabled:opacity-60"
+                className="px-5 py-2.5 rounded-lg text-white font-medium disabled:opacity-50 hover:opacity-90 transition-all"
                 style={{ background: "#0ea5e9" }}
               >
-                {processSubmitting ? "Saving..." : "Add Step"}
+                {processSubmitting ? "⏳ Saving..." : "➕ Add Step"}
               </button>
             </div>
           </div>
         )}
 
-        <div
-          className="rounded-xl overflow-hidden"
-          style={{ background: "#13161e", border: "1px solid rgba(255,255,255,0.08)" }}
-        >
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-gray-400 border-b border-white/10">
-                <th className="px-4 py-3">Item ID</th>
-                <th className="px-4 py-3">Type</th>
-                <th className="px-4 py-3">Title</th>
-                <th className="px-4 py-3">Priority</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Assigned To</th>
-                <th className="px-4 py-3">Due At</th>
-                <th className="px-4 py-3">Created By</th>
-                <th className="px-4 py-3">Created At</th>
-                {canShowActionsColumn && <th className="px-4 py-3">Actions</th>}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredBugs.length === 0 ? (
-                <tr>
-                  <td colSpan={canShowActionsColumn ? 10 : 9} className="px-4 py-5 text-gray-400">
-                    No items match current filters.
-                  </td>
+        <div className="rounded-2xl overflow-hidden backdrop-blur-xl shadow-2xl" style={{ background: "rgba(19, 22, 30, 0.7)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "0 8px 32px 0 rgba(139, 92, 246, 0.15)" }}>
+          <div className="px-6 py-4 border-b border-white/10 bg-gradient-to-r from-indigo-900/30 to-purple-900/30">
+            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+              <span>📊</span>
+              <span>Work Items Overview</span>
+              <span className="ml-auto text-sm font-normal text-gray-400">
+                {filteredBugs.length} item{filteredBugs.length !== 1 ? "s" : ""}
+              </span>
+            </h2>
+          </div>
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 z-10" style={{ background: "#1a1e2e" }}>
+                <tr className="text-left text-gray-300 border-b-2 border-white/20">
+                  <th className="px-4 py-3 font-semibold">Item ID</th>
+                  <th className="px-4 py-3 font-semibold">Type</th>
+                  <th className="px-4 py-3 font-semibold">Title</th>
+                  <th className="px-4 py-3 font-semibold">Priority</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
+                  <th className="px-4 py-3 font-semibold">Assigned To</th>
+                  <th className="px-4 py-3 font-semibold">Due At</th>
+                  <th className="px-4 py-3 font-semibold">Created By</th>
+                  <th className="px-4 py-3 font-semibold">Created At</th>
+                  {canShowActionsColumn && <th className="px-4 py-3 font-semibold">Actions</th>}
                 </tr>
-              ) : (
-                filteredBugs.map((bug) => (
-                  <tr
-                    key={bug.id}
-                    onClick={() => loadBugIntoFields(bug)}
-                    className="border-b border-white/5 text-gray-200 cursor-pointer"
-                    style={{
-                      background: selectedBugId === bug.id ? "rgba(99,102,241,0.16)" : "transparent",
-                    }}
-                  >
-                    <td className="px-4 py-3">{bug.type === "FEATURE" ? `FEATURE-${bug.id}` : `BUG-${bug.id}`}</td>
-                    <td className="px-4 py-3">{bug.type}</td>
-                    <td className="px-4 py-3">{bug.title}</td>
-                    <td className="px-4 py-3">{bug.priority}</td>
-                    <td className="px-4 py-3">{bug.status}</td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      {canReassign ? (
-                        <select
-                          value={bug.assignedTo?.id ?? ""}
-                          onChange={(e) => onInlineAssignDeveloper(bug, e.target.value ? Number(e.target.value) : "")}
-                          disabled={inlineAssigningItemId === bug.id}
-                          className="min-w-[150px] px-2 py-1 rounded bg-black/20 text-white outline-none border border-white/10 disabled:opacity-60"
-                        >
-                          <option value="">Unassigned</option>
-                          {developers.map((developer) => (
-                            <option key={developer.id} value={developer.id}>
-                              {developer.username}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        bug.assignedTo?.username || "Unassigned"
-                      )}
+              </thead>
+              <tbody>
+                {filteredBugs.length === 0 ? (
+                  <tr>
+                    <td colSpan={canShowActionsColumn ? 10 : 9} className="px-4 py-12 text-center">
+                      <div className="flex flex-col items-center gap-3">
+                        <span className="text-5xl opacity-30">📭</span>
+                        <span className="text-gray-400 text-base">No items match current filters</span>
+                      </div>
                     </td>
-                    <td className="px-4 py-3">{bug.dueAt ? new Date(bug.dueAt).toLocaleString() : "-"}</td>
-                    <td className="px-4 py-3">{bug.createdBy?.username}</td>
-                    <td className="px-4 py-3">{new Date(bug.createdAt).toLocaleString()}</td>
-                    {canShowActionsColumn && (
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          {isDeveloperRole && bug.assignedTo?.id === user?.id && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  moveBugStatus(bug, "IN_PROGRESS");
-                                }}
-                                disabled={statusUpdatingItemId === bug.id || bug.status !== "BUG_LIST"}
-                                className="px-3 py-1 rounded text-xs text-white disabled:opacity-60"
-                                style={{ background: "#ea580c" }}
-                              >
-                                {statusUpdatingItemId === bug.id && bug.status === "BUG_LIST" ? "Starting..." : "Start Progress"}
-                              </button>
-
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  moveBugStatus(bug, "QA_FIX");
-                                }}
-                                disabled={statusUpdatingItemId === bug.id || bug.status !== "IN_PROGRESS"}
-                                className="px-3 py-1 rounded text-xs text-white disabled:opacity-60"
-                                style={{ background: "#0284c7" }}
-                              >
-                                {statusUpdatingItemId === bug.id && bug.status === "IN_PROGRESS" ? "Submitting..." : "QA Fix"}
-                              </button>
-                            </>
-                          )}
-
-                          {canManage && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onApproveAndDone(bug);
-                                }}
-                                disabled={
-                                  markingDoneItemId === bug.id ||
-                                  bug.status === "DONE" ||
-                                  bug.status === "PUBLISHED" ||
-                                  (bug.status !== "IN_PROGRESS" && bug.status !== "QA_FIX")
-                                }
-                                className="px-3 py-1 rounded text-xs text-white disabled:opacity-60"
-                                style={{ background: "#16a34a" }}
-                              >
-                                {markingDoneItemId === bug.id
-                                  ? "Moving..."
-                                  : bug.status === "DONE" || bug.status === "PUBLISHED"
-                                  ? "Done"
-                                  : bug.status !== "IN_PROGRESS" && bug.status !== "QA_FIX"
-                                  ? "Need Progress"
-                                  : "Approve & Done"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onPublishItem(bug);
-                                }}
-                                disabled={publishingItemId === bug.id || bug.status === "PUBLISHED" || bug.status !== "DONE"}
-                                className="px-3 py-1 rounded text-xs text-white disabled:opacity-60"
-                                style={{ background: "#7c3aed" }}
-                              >
-                                {publishingItemId === bug.id ? "Publishing..." : bug.status === "PUBLISHED" ? "Published" : "Publish"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onDeleteItem(bug);
-                                }}
-                                disabled={deletingItemId === bug.id}
-                                className="px-3 py-1 rounded text-xs text-white disabled:opacity-60"
-                                style={{ background: "#ef4444" }}
-                              >
-                                {deletingItemId === bug.id ? "Deleting..." : "Delete"}
-                              </button>
-                            </>
-                          )}
-
-                          {isClientRole && bug.status === "PUBLISHED" && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  submitClientReviewForBug(bug, "ACCEPTED");
-                                }}
-                                disabled={clientReviewingItemId === bug.id}
-                                className="px-3 py-1 rounded text-xs text-white disabled:opacity-60"
-                                style={{ background: "#16a34a" }}
-                              >
-                                {clientReviewingItemId === bug.id ? "Saving..." : "Accept"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  submitClientReviewForBug(bug, "REJECTED");
-                                }}
-                                disabled={clientReviewingItemId === bug.id}
-                                className="px-3 py-1 rounded text-xs text-white disabled:opacity-60"
-                                style={{ background: "#dc2626" }}
-                              >
-                                Reject to BUG_LIST
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    )}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
+                ) : (
+                  filteredBugs.map((bug, index) => (
+                    <tr
+                      key={bug.id}
+                      onClick={() => loadBugIntoFields(bug)}
+                      className="border-b border-white/5 text-gray-200 cursor-pointer transition-all hover:bg-white/5"
+                      style={{
+                        background: selectedBugId === bug.id 
+                          ? "rgba(99,102,241,0.2)" 
+                          : index % 2 === 0 
+                          ? "rgba(255,255,255,0.02)" 
+                          : "transparent",
+                      }}
+                    >
+                      <td className="px-4 py-4">
+                        <span className="font-mono text-xs px-2 py-1 rounded" style={{
+                          background: bug.type === "FEATURE" ? "#581c8720" : "#7f1d1d20",
+                          color: bug.type === "FEATURE" ? "#e9d5ff" : "#fca5a5",
+                          border: `1px solid ${bug.type === "FEATURE" ? "#a855f740" : "#ef444440"}`
+                        }}>
+                          {bug.type === "FEATURE" ? `✨ FEATURE-${bug.id}` : `🐛 BUG-${bug.id}`}
+                        </span>
+                      </td>
+                      <td className="px-4 py-4">
+                        <span className="text-xs font-medium">{bug.type === "FEATURE" ? "Feature" : "Bug"}</span>
+                      </td>
+                      <td className="px-4 py-4 max-w-xs">
+                        <div className="font-medium truncate" title={bug.title}>{bug.title}</div>
+                      </td>
+                      <td className="px-4 py-4">{getPriorityBadge(bug.priority)}</td>
+                      <td className="px-4 py-4">{getStatusBadge(bug.status)}</td>
+                      <td className="px-4 py-4" onClick={(e) => e.stopPropagation()}>
+                        {canReassign ? (
+                          <select
+                            value={bug.assignedTo?.id ?? ""}
+                            onChange={(e) => onInlineAssignDeveloper(bug, e.target.value ? Number(e.target.value) : "")}
+                            disabled={inlineAssigningItemId === bug.id}
+                            className="min-w-[150px] px-2.5 py-1.5 rounded-xl backdrop-blur-sm text-white text-xs outline-none transition-all disabled:opacity-50"
+                            style={{ background: "rgba(0, 0, 0, 0.4)", border: "1px solid rgba(139, 92, 246, 0.2)", boxShadow: "inset 0 2px 4px rgba(0, 0, 0, 0.2)" }}
+                          >
+                            <option value="">⚪ Unassigned</option>
+                            {developers.map((developer) => (
+                              <option key={developer.id} value={developer.id}>
+                                👤 {developer.username}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-xs">{bug.assignedTo?.username ? `👤 ${bug.assignedTo.username}` : "⚪ Unassigned"}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-xs whitespace-nowrap">
+                        {bug.dueAt ? (
+                          <span className="flex items-center gap-1">
+                            <span>📅</span>
+                            <span>{new Date(bug.dueAt).toLocaleString()}</span>
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-4 text-xs">{bug.createdBy?.username}</td>
+                      <td className="px-4 py-4 text-xs whitespace-nowrap">{new Date(bug.createdAt).toLocaleString()}</td>
+                      {canShowActionsColumn && (
+                        <td className="px-4 py-4">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {isDeveloperRole && bug.assignedTo?.id === user?.id && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    moveBugStatus(bug, "IN_PROGRESS");
+                                  }}
+                                  disabled={statusUpdatingItemId === bug.id || bug.status !== "BUG_LIST"}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-all whitespace-nowrap"
+                                  style={{ background: "#ea580c" }}
+                                >
+                                  {statusUpdatingItemId === bug.id && bug.status === "BUG_LIST" ? "⏳" : "▶️"} Start
+                                  </button>
+
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    moveBugStatus(bug, "QA_FIX");
+                                  }}
+                                  disabled={statusUpdatingItemId === bug.id || bug.status !== "IN_PROGRESS"}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-all whitespace-nowrap"
+                                  style={{ background: "#0284c7" }}
+                                >
+                                  {statusUpdatingItemId === bug.id && bug.status === "IN_PROGRESS" ? "⏳" : "🔍"} QA Fix
+                                </button>
+                              </>
+                            )}
+
+                            {canManage && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onApproveAndDone(bug);
+                                  }}
+                                  disabled={
+                                    markingDoneItemId === bug.id ||
+                                    bug.status === "DONE" ||
+                                    bug.status === "PUBLISHED" ||
+                                    (bug.status !== "IN_PROGRESS" && bug.status !== "QA_FIX")
+                                  }
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-all whitespace-nowrap"
+                                  style={{ background: "#16a34a" }}
+                                >
+                                  {markingDoneItemId === bug.id
+                                    ? "⏳"
+                                    : bug.status === "DONE" || bug.status === "PUBLISHED"
+                                    ? "✅"
+                                    : "✓"}{" "}
+                                  {bug.status === "DONE" || bug.status === "PUBLISHED" ? "Done" : "Approve"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onPublishItem(bug);
+                                  }}
+                                  disabled={publishingItemId === bug.id || bug.status === "PUBLISHED" || bug.status !== "DONE"}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-all whitespace-nowrap"
+                                  style={{ background: "#7c3aed" }}
+                                >
+                                  {publishingItemId === bug.id ? "⏳" : bug.status === "PUBLISHED" ? "🚀" : "📤"} Publish
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteItem(bug);
+                                  }}
+                                  disabled={deletingItemId === bug.id}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-all whitespace-nowrap"
+                                  style={{ background: "#ef4444" }}
+                                >
+                                  {deletingItemId === bug.id ? "⏳" : "🗑️"} Delete
+                                </button>
+                              </>
+                            )}
+
+                            {isClientRole && bug.status === "PUBLISHED" && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    submitClientReviewForBug(bug, "ACCEPTED");
+                                  }}
+                                  disabled={clientReviewingItemId === bug.id}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-all whitespace-nowrap"
+                                  style={{ background: "#16a34a" }}
+                                >
+                                  {clientReviewingItemId === bug.id ? "⏳" : "✓"} Accept
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    submitClientReviewForBug(bug, "REJECTED");
+                                  }}
+                                  disabled={clientReviewingItemId === bug.id}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white disabled:opacity-40 hover:opacity-90 transition-all whitespace-nowrap"
+                                  style={{ background: "#dc2626" }}
+                                >
+                                  ✗ Reject
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {isClientRole && (
           <div
-            className="mt-6 p-4 rounded-xl"
-            style={{ background: "#13161e", border: "1px solid rgba(255,255,255,0.08)" }}
+            className="mt-6 p-6 rounded-2xl backdrop-blur-xl shadow-2xl"
+            style={{ background: "rgba(19, 78, 74, 0.6)", border: "1px solid rgba(45, 212, 191, 0.3)", boxShadow: "0 8px 32px 0 rgba(20, 184, 166, 0.2)" }}
           >
-            <div className="text-sm text-gray-100 mb-2">Upload Attachments</div>
-            <div className="text-xs text-gray-400 mb-3">
-              {selectedItem
-                ? `Selected bug: BUG-${selectedItem.id} (${selectedItem.title})`
-                : "Select a bug row first, then upload an image attachment."}
+            <div className="flex items-center gap-3 mb-4">
+              <span className="text-3xl">📎</span>
+              <div>
+                <h3 className="text-lg font-bold text-white">Upload Bug Attachments</h3>
+                <p className="text-xs text-gray-400">
+                  {selectedItem
+                    ? `Selected: 🐛 BUG-${selectedItem.id} - ${selectedItem.title}`
+                    : "⚠️ Select a bug from the table above to upload attachments"}
+                </p>
+              </div>
             </div>
 
-            <div className="flex gap-2 mb-4">
-              <input
-                type="file"
-                accept="image/*"
-                disabled={!selectedItem || uploadingAttachment}
-                onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
-                className="flex-1 px-3 py-2 rounded bg-black/20 text-white outline-none border border-white/10 disabled:opacity-60"
-              />
-              <button
-                type="button"
-                onClick={uploadClientAttachment}
-                disabled={!selectedItem || !attachmentFile || uploadingAttachment}
-                className="px-4 py-2 rounded text-white disabled:opacity-60"
-                style={{ background: "#0ea5e9" }}
-              >
-                {uploadingAttachment ? "Uploading..." : "Upload"}
-              </button>
+            <div className="mb-6 p-4 rounded-xl backdrop-blur-sm border border-dashed" style={{ background: "rgba(0, 0, 0, 0.2)", borderColor: "rgba(139, 92, 246, 0.3)" }}>
+              <div className="flex gap-3">
+                <label className="flex-1 px-4 py-3 rounded-xl backdrop-blur-sm text-white transition-all cursor-pointer" style={{ background: "rgba(0, 0, 0, 0.3)", border: "1px solid rgba(139, 92, 246, 0.2)" }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">📁</span>
+                    <span className="text-sm">{attachmentFile ? attachmentFile.name : "Choose an image file..."}</span>
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={!selectedItem || uploadingAttachment}
+                    onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+                <button
+                  type="button"
+                  onClick={uploadClientAttachment}
+                  disabled={!selectedItem || !attachmentFile || uploadingAttachment}
+                  className="px-6 py-3 rounded-lg text-white font-semibold disabled:opacity-40 hover:opacity-90 transition-all"
+                  style={{ background: "#0ea5e9" }}
+                >
+                  {uploadingAttachment ? "⏳ Uploading..." : "📤 Upload"}
+                </button>
+              </div>
             </div>
 
-            <div className="text-sm text-gray-200 mb-2">Saved Attachments (below table)</div>
+            <div className="mb-3 flex items-center justify-between">
+              <h4 className="text-sm font-semibold text-white">📂 Saved Attachments</h4>
+              {selectedAttachments.length > 0 && (
+                <span className="text-xs text-gray-400 bg-white/10 px-2 py-1 rounded-full">
+                  {selectedAttachments.length} file{selectedAttachments.length !== 1 ? "s" : ""}
+                </span>
+              )}
+            </div>
             {selectedAttachments.length === 0 ? (
-              <div className="text-xs text-gray-500">No attachments saved for this bug yet.</div>
+              <div className="px-4 py-8 bg-black/20 rounded-lg border border-dashed border-white/10 text-center">
+                <span className="text-4xl opacity-30 block mb-2">📭</span>
+                <span className="text-gray-500 text-sm">No attachments saved for this bug yet</span>
+              </div>
             ) : (
-              <div className="overflow-auto rounded border border-white/10">
+              <div className="overflow-auto rounded-xl border shadow-lg backdrop-blur-sm scrollbar-cyan" style={{ borderColor: "rgba(139, 92, 246, 0.2)" }}>
                 <table className="w-full text-sm">
-                  <thead>
-                    <tr className="text-left text-gray-400 border-b border-white/10">
-                      <th className="px-3 py-2">Preview</th>
-                      <th className="px-3 py-2">File Name</th>
-                      <th className="px-3 py-2">Type</th>
-                      <th className="px-3 py-2">Created</th>
-                      <th className="px-3 py-2">Action</th>
+                  <thead style={{ background: "rgba(0, 0, 0, 0.4)" }}>
+                    <tr className="text-left text-gray-300 border-b border-white/10">
+                      <th className="px-4 py-3 font-semibold">Preview</th>
+                      <th className="px-4 py-3 font-semibold">File Name</th>
+                      <th className="px-4 py-3 font-semibold">Type</th>
+                      <th className="px-4 py-3 font-semibold">Created</th>
+                      <th className="px-4 py-3 font-semibold">Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {selectedAttachments.map((attachment) => (
-                      <tr key={attachment.id} className="border-b border-white/5 text-gray-200">
-                        <td className="px-3 py-2">
+                    {selectedAttachments.map((attachment, index) => (
+                      <tr 
+                        key={attachment.id} 
+                        className="border-b border-white/5 text-gray-200 hover:bg-white/5 transition-colors"
+                        style={{ background: index % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent" }}
+                      >
+                        <td className="px-4 py-3">
                           {isImageAttachment(attachment.fileType) ? (
                             <img
                               src={attachment.url}
                               alt={attachment.originalName}
-                              className="h-10 w-10 rounded object-cover border border-white/10"
+                              className="h-12 w-12 rounded-lg object-cover border-2 border-white/10 hover:border-teal-500/50 transition-all cursor-pointer shadow-md"
+                              onClick={() => setPreviewAttachment(attachment)}
                             />
                           ) : (
-                            <span className="text-xs text-gray-500">N/A</span>
+                            <div className="h-12 w-12 rounded-lg bg-gray-800 border border-white/10 flex items-center justify-center">
+                              <span className="text-xl">📄</span>
+                            </div>
                           )}
                         </td>
-                        <td className="px-3 py-2">{attachment.originalName}</td>
-                        <td className="px-3 py-2">{attachment.fileType}</td>
-                        <td className="px-3 py-2">{new Date(attachment.createdAt).toLocaleString()}</td>
-                        <td className="px-3 py-2">
+                        <td className="px-4 py-3">
+                          <span className="font-medium text-xs">{attachment.originalName}</span>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs px-2 py-1 rounded bg-teal-900/30 text-teal-300 border border-teal-500/30">
+                            {attachment.fileType}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          {new Date(attachment.createdAt).toLocaleString()}
+                        </td>
+                        <td className="px-4 py-3">
                           <button
                             type="button"
                             onClick={() => {
@@ -1277,10 +1486,10 @@ export default function BugsPage() {
                               }
                               window.open(attachment.url, "_blank", "noopener,noreferrer");
                             }}
-                            className="px-3 py-1 rounded text-xs text-white"
+                            className="px-4 py-1.5 rounded-lg text-xs font-medium text-white hover:opacity-90 transition-all"
                             style={{ background: "#2563eb" }}
                           >
-                            View
+                            👁️ View
                           </button>
                         </td>
                       </tr>
@@ -1293,24 +1502,34 @@ export default function BugsPage() {
         )}
 
         {previewAttachment && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-            <div className="max-w-4xl w-full rounded-xl border border-white/10 bg-[#13161e] p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm text-gray-200 truncate pr-4">{previewAttachment.originalName}</div>
+          <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-2xl p-4 animate-fadeIn" style={{ background: "rgba(0, 0, 0, 0.8)" }}>
+            <div className="max-w-5xl w-full rounded-3xl overflow-hidden backdrop-blur-xl shadow-2xl" style={{ background: "rgba(19, 22, 30, 0.9)", border: "2px solid rgba(139, 92, 246, 0.3)", boxShadow: "0 20px 60px 0 rgba(139, 92, 246, 0.3)" }}>
+              <div className="flex items-center justify-between p-4 bg-gradient-to-r from-indigo-900/40 to-purple-900/40 border-b border-white/10">
+                <div className="flex items-center gap-3">
+                  <span className="text-2xl">🖼️</span>
+                  <div>
+                    <h3 className="text-sm font-semibold text-white truncate max-w-md" title={previewAttachment.originalName}>
+                      {previewAttachment.originalName}
+                    </h3>
+                    <p className="text-xs text-gray-400">{previewAttachment.fileType}</p>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => setPreviewAttachment(null)}
-                  className="px-3 py-1 rounded text-xs text-white"
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-all"
                   style={{ background: "#ef4444" }}
                 >
-                  Close
+                  ✕ Close
                 </button>
               </div>
-              <img
-                src={previewAttachment.url}
-                alt={previewAttachment.originalName}
-                className="w-full max-h-[75vh] object-contain rounded border border-white/10"
-              />
+              <div className="p-6 bg-black/40">
+                <img
+                  src={previewAttachment.url}
+                  alt={previewAttachment.originalName}
+                  className="w-full max-h-[75vh] object-contain rounded-lg border-2 border-white/10 shadow-2xl"
+                />
+              </div>
             </div>
           </div>
         )}
