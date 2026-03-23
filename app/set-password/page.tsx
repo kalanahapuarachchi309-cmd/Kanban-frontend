@@ -3,6 +3,7 @@
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { setPasswordWithToken } from "../lib/api/auth";
+import Image from "next/image";
 
 function SetPasswordContent() {
   const router = useRouter();
@@ -51,6 +52,11 @@ function SetPasswordContent() {
   return (
     <div className="flex items-center justify-center min-h-screen" style={{ background: "#0d0f14" }}>
       <div className="w-full max-w-md p-8 rounded-lg" style={{ background: "#1a1d25", border: "1px solid #2a2d38" }}>
+        <div className="mb-4 flex justify-center">
+          <div className="logo-frame logo-frame-animated border border-white/10 bg-black/20">
+            <Image src="/logo.jpeg" alt="Set password logo" width={42} height={42} className="logo-img logo-color-animate object-cover" priority />
+          </div>
+        </div>
         <h1 className="text-2xl font-bold text-white mb-2 text-center">Set Your Password</h1>
         <p className="text-gray-400 text-sm mb-6 text-center">Use this link to create your account password.</p>
 

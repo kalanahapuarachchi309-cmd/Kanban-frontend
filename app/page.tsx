@@ -428,6 +428,8 @@ export default function Home() {
           onTabChange={setActiveTab}
           currentRole={currentRole}
           projectName={currentProject?.name || "Project"}
+          logoSrc="/logo.jpeg"
+          logoAlt="Dashboard logo"
           notifications={notifications}
           showNotifications={currentRole !== "CLIENT"}
           onFilterToggle={() => setFilterOpen((v) => !v)}

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { changePassword, setPasswordWithToken } from "../lib/api/auth";
+import Image from "next/image";
 
 export default function ChangePasswordPage() {
   const router = useRouter();
@@ -63,6 +64,11 @@ export default function ChangePasswordPage() {
   return (
     <div className="flex items-center justify-center min-h-screen" style={{ background: "#0d0f14" }}>
       <div className="w-full max-w-md p-8 rounded-lg" style={{ background: "#1a1d25", border: "1px solid #2a2d38" }}>
+        <div className="mb-4 flex justify-center">
+          <div className="logo-frame logo-frame-animated border border-white/10 bg-black/20">
+            <Image src="/logo-2.png" alt="Change password logo" width={42} height={42} className="logo-img logo-color-animate object-contain" priority />
+          </div>
+        </div>
         <h1 className="text-2xl font-bold text-white mb-2 text-center">Change Password</h1>
         <p className="text-gray-400 text-sm mb-6 text-center">
           {isTokenFlow

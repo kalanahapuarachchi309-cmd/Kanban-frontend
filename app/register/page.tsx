@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { register } from "../lib/api/auth";
+import Image from "next/image";
 
 type Role = "QA_PM" | "DEVELOPER" | "CLIENT";
 
@@ -112,6 +113,11 @@ export default function RegisterPage() {
   return (
     <div className="flex items-center justify-center min-h-screen p-4" style={{ background: "#0d0f14" }}>
       <div className="w-full max-w-4xl p-6 rounded-lg" style={{ background: "#1a1d25", border: "1px solid #2a2d38" }}>
+        <div className="mb-3 flex justify-center">
+          <div className="logo-frame logo-frame-animated border border-white/10 bg-black/20">
+            <Image src="/logo-2.png" alt="Register logo" width={42} height={42} className="logo-img logo-color-animate object-contain" priority />
+          </div>
+        </div>
         <h1 className="text-2xl font-bold text-white mb-1 text-center">Create Account</h1>
         <p className="text-gray-400 text-center mb-4 text-sm">Join the Kanban Board</p>
 
