@@ -19,6 +19,7 @@ export default function Header({
   currentRole,
   projectName,
   notifications,
+  showNotifications = true,
   onFilterToggle,
   filterActive,
   onAddItem,
@@ -30,6 +31,7 @@ export default function Header({
   currentRole: Role;
   projectName: string;
   notifications: Notification[];
+  showNotifications?: boolean;
   onFilterToggle: () => void;
   filterActive: boolean;
   onAddItem?: () => void;
@@ -73,55 +75,57 @@ export default function Header({
           )}
 
           {/* Notifications */}
-          <div className="relative">
-            <button onClick={() => setShowNotifs(!showNotifs)}
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors relative"
-              style={{ background: showNotifs ? "rgba(255,255,255,0.08)" : "transparent" }}>
-              <Bell size={15} />
-              {unread > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white font-bold"
-                  style={{ background: "#ef4444", fontSize: "8px" }}>{unread}</span>
-              )}
-            </button>
-            {/* Notification dropdown */}
-            {showNotifs && (
-              <div className="absolute right-0 top-10 w-80 rounded-xl shadow-2xl z-50 overflow-hidden"
-                style={{ background: "#1e2130", border: "1px solid rgba(255,255,255,0.1)" }}>
-                <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white text-xs font-semibold">Notifications</span>
-                    {unread > 0 && (
+          {showNotifications && (
+            <div className="relative">
+              <button onClick={() => setShowNotifs(!showNotifs)}
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-300 transition-colors relative"
+                style={{ background: showNotifs ? "rgba(255,255,255,0.08)" : "transparent" }}>
+                <Bell size={15} />
+                {unread > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center text-white font-bold"
+                    style={{ background: "#ef4444", fontSize: "8px" }}>{unread}</span>
+                )}
+              </button>
+              {/* Notification dropdown */}
+              {showNotifs && (
+                <div className="absolute right-0 top-10 w-80 rounded-xl shadow-2xl z-50 overflow-hidden"
+                  style={{ background: "#1e2130", border: "1px solid rgba(255,255,255,0.1)" }}>
+                  <div className="px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white text-xs font-semibold">Notifications</span>
+                      {unread > 0 && (
+                        <button
+                          onClick={onMarkAllNotificationsRead}
+                          className="text-indigo-400 text-[10px] cursor-pointer hover:text-indigo-300"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="max-h-72 overflow-y-auto scrollbar-thin">
+                    {notifications.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-gray-600 text-xs">No notifications</div>
+                    ) : notifications.map((n) => (
                       <button
-                        onClick={onMarkAllNotificationsRead}
-                        className="text-indigo-400 text-[10px] cursor-pointer hover:text-indigo-300"
-                      >
-                        Mark all read
+                        key={n.id}
+                        onClick={() => onMarkNotificationRead?.(n.id)}
+                        className="w-full text-left px-4 py-3 border-b hover:bg-white/5 transition-colors cursor-pointer"
+                        style={{ borderColor: "rgba(255,255,255,0.05)", opacity: n.isRead ? 0.5 : 1 }}>
+                        <div className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: n.isRead ? "#4b5563" : "#6366f1" }} />
+                          <div>
+                            <p className="text-gray-200 text-xs font-medium">{n.title}</p>
+                            <p className="text-gray-500 mt-0.5" style={{ fontSize: "11px" }}>{n.body}</p>
+                          </div>
+                        </div>
                       </button>
-                    )}
+                    ))}
                   </div>
                 </div>
-                <div className="max-h-72 overflow-y-auto">
-                  {notifications.length === 0 ? (
-                    <div className="px-4 py-6 text-center text-gray-600 text-xs">No notifications</div>
-                  ) : notifications.map((n) => (
-                    <button
-                      key={n.id}
-                      onClick={() => onMarkNotificationRead?.(n.id)}
-                      className="w-full text-left px-4 py-3 border-b hover:bg-white/5 transition-colors cursor-pointer"
-                      style={{ borderColor: "rgba(255,255,255,0.05)", opacity: n.isRead ? 0.5 : 1 }}>
-                      <div className="flex items-start gap-2">
-                        <div className="w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0" style={{ background: n.isRead ? "#4b5563" : "#6366f1" }} />
-                        <div>
-                          <p className="text-gray-200 text-xs font-medium">{n.title}</p>
-                          <p className="text-gray-500 mt-0.5" style={{ fontSize: "11px" }}>{n.body}</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
+          )}
 
           <button className="text-gray-500 hover:text-gray-300 transition-colors">
             <MoreHorizontal size={16} />

@@ -2,7 +2,7 @@
 
 import { Plus } from "lucide-react";
 import TaskCard from "./TaskCard";
-import { WorkItem, WorkItemStatus, Role } from "../types";
+import { WorkItem, WorkItemStatus, Role, User } from "../types";
 
 type Props = {
   status: WorkItemStatus;
@@ -10,9 +10,19 @@ type Props = {
   accentColor: string;
   items: WorkItem[];
   currentRole: Role;
+  currentUser: User;
+  developers: User[];
   onAddItem?: () => void;
   onClientReview?: (id: number, reviewStatus: "ACCEPTED" | "REJECTED") => void;
   clientReviewLoadingId?: number | null;
+  onStatusChange?: (item: WorkItem, toStatus: "IN_PROGRESS" | "QA_FIX" | "DONE") => void;
+  onPublish?: (item: WorkItem) => void;
+  onDelete?: (item: WorkItem) => void;
+  onAssign?: (item: WorkItem, developerId: number) => void;
+  onEdit?: (item: WorkItem) => void;
+  statusUpdatingItemId?: number | null;
+  publishingItemId?: number | null;
+  deletingItemId?: number | null;
 };
 
 const STATUS_DESCRIPTIONS: Record<WorkItemStatus, string> = {
@@ -30,15 +40,25 @@ export default function KanbanColumn({
   accentColor,
   items,
   currentRole,
+  currentUser,
+  developers,
   onAddItem,
   onClientReview,
   clientReviewLoadingId,
+  onStatusChange,
+  onPublish,
+  onDelete,
+  onAssign,
+  onEdit,
+  statusUpdatingItemId,
+  publishingItemId,
+  deletingItemId,
 }: Props) {
   const canAdd = (currentRole === "QA_PM" || currentRole === "ADMIN") && status === "BUG_LIST";
   return (
-    <div className="flex flex-col rounded-2xl flex-shrink-0"
-      style={{ width: "280px", background: "#161920", border: "1px solid rgba(255,255,255,0.06)",
-        minHeight: "calc(100vh - 130px)", maxHeight: "calc(100vh - 130px)" }}>
+    <div className="flex flex-col rounded-2xl flex-shrink-0 backdrop-blur-xl shadow-2xl"
+      style={{ width: "280px", background: "rgba(22, 25, 32, 0.7)", border: "1px solid rgba(139, 92, 246, 0.2)",
+        minHeight: "calc(100vh - 130px)", maxHeight: "calc(100vh - 130px)", boxShadow: "0 8px 32px 0 rgba(0, 0, 0, 0.3)" }}>
       {/* Header */}
       <div className="px-4 pt-4 pb-3 flex-shrink-0">
         <div className="flex items-center justify-between mb-1">
@@ -62,7 +82,11 @@ export default function KanbanColumn({
           style={{ background: `linear-gradient(to right, ${accentColor}, transparent)` }} />
       </div>
       {/* Cards */}
-      <div className="flex-1 overflow-y-auto px-3 pb-2" style={{ scrollbarWidth: "thin" }}>
+      <div className={`flex-1 overflow-y-auto px-3 pb-2 ${
+        status === 'DONE' ? 'scrollbar-green' : 
+        status === 'IN_PROGRESS' ? 'scrollbar-orange' : 
+        status === 'QA_FIX' ? 'scrollbar-cyan' : ''
+      }`}>
         {items.length === 0 ? (
           <div className="flex items-center justify-center h-20 rounded-xl border-dashed border text-gray-700 text-xs mt-1"
             style={{ borderColor: "rgba(255,255,255,0.06)" }}>No items</div>
@@ -72,8 +96,18 @@ export default function KanbanColumn({
               key={item.id}
               item={item}
               currentRole={currentRole}
+              currentUser={currentUser}
+              developers={developers}
               onClientReview={onClientReview}
               clientReviewLoading={clientReviewLoadingId === item.id}
+              onStatusChange={onStatusChange}
+              onPublish={onPublish}
+              onDelete={onDelete}
+              onAssign={onAssign}
+              onEdit={onEdit}
+              statusUpdating={statusUpdatingItemId === item.id}
+              publishing={publishingItemId === item.id}
+              deleting={deletingItemId === item.id}
             />
           ))
         )}

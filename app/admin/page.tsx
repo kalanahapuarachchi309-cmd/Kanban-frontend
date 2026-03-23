@@ -400,7 +400,7 @@ export default function AdminPanel() {
   const selectedRoleLabel = ROLE_OPTIONS.find((option) => option.value === memberForm.role)?.label || memberForm.role;
 
   return (
-    <div className="h-screen overflow-y-auto p-6" style={{ background: "#0d0f14" }}>
+    <div className="h-screen overflow-y-auto p-6" style={{ background: "linear-gradient(135deg, #0d0f14 0%, #1a1d2e 50%, #0d0f14 100%)" }}>
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -499,7 +499,7 @@ export default function AdminPanel() {
 
               <div className="px-3 py-2 rounded bg-[#0d0f14] border border-gray-700 text-white text-sm">
               <div className="text-xs text-gray-400 mb-2">Select {selectedRoleLabel} users ({memberForm.userIds.length} selected)</div>
-              <div className="max-h-28 overflow-y-auto space-y-1">
+              <div className="max-h-28 overflow-y-auto scrollbar-thin space-y-1">
                 {roleUsers.map((u) => {
                   const checked = memberForm.userIds.includes(u.id);
                   const alreadyAssigned = assignedUserIds.has(u.id);
@@ -730,7 +730,7 @@ export default function AdminPanel() {
           {isLoading ? (
             <div className="p-8 text-center text-gray-400">Loading users...</div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto scrollbar-thin">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gray-700">

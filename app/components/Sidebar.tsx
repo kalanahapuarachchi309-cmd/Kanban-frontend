@@ -57,8 +57,8 @@ export default function Sidebar({
       </div>
 
       {/* Text Sidebar */}
-      <div className="w-56 flex flex-col py-3 overflow-y-auto border-r"
-        style={{ background: "#13161e", borderColor: "rgba(255,255,255,0.06)" }}>
+      <div className="w-56 flex flex-col py-3 overflow-y-auto border-r scrollbar-thin"
+        style={{ background: "rgba(19, 22, 30, 0.8)", borderColor: "rgba(139, 92, 246, 0.15)", backdropFilter: "blur(10px)" }}>
         {/* Role Switcher */}
         <div className="px-3 mb-4">
           <p className="text-gray-600 mb-2 uppercase font-semibold tracking-widest" style={{ fontSize: "10px" }}>Your Role</p>
