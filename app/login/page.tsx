@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useAuth } from "../lib/auth-context";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { resendPasswordSetupLink } from "../lib/api/auth";
 
 export default function LoginPage() {
@@ -120,16 +119,9 @@ export default function LoginPage() {
           {isResending ? "Sending..." : "Resend Password Setup Email"}
         </button>
 
-        <p className="mt-6 text-center text-sm text-gray-400">
-          Don't have an account?{" "}
-          <Link href="/register" className="text-blue-500 hover:text-blue-400">
-            Sign up
-          </Link>
-        </p>
-
-        <p className="mt-4 text-center text-sm text-gray-500">
+        {/* <p className="mt-4 text-center text-sm text-gray-500">
           Default credentials: admin / admin123
-        </p>
+        </p> */}
       </div>
     </div>
   );
