@@ -1,0 +1,19 @@
+
+> kanban-frontend@0.1.0 dev
+> next dev
+
+▲ Next.js 16.1.6 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.56.1:3000
+- Environments: .env.local
+
+✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Users\\94716\\Desktop\\dash_Board_office\\kanban-frontend',
+  testMode: true
+}
+✓ Ready in 2.6s
+ GET / 200 in 1888ms (compile: 1478ms, render: 410ms)
+ GET / 200 in 88ms (compile: 8ms, render: 80ms)
+ GET /login/ 200 in 198ms (compile: 63ms, render: 135ms)
+[?25h
